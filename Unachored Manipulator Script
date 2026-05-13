@@ -1,0 +1,629 @@
+-- AESTHETIC PHYSICS MANIPULATOR
+-- Only affects unanchored parts your client naturally simulates.
+-- No forced ownership hijacking. No firetouchinterest exploits.
+-- Works best in building/sandbox games or with parts you created.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- ==================== STATE ====================
+local controlled = {}
+local partCount = 0
+local isActive = false
+local currentMode = "none"
+local radius = 8
+local pullStrength = 300000
+local spinSpeed = 0
+local spinAngle = 0
+local scriptAlive = true
+
+-- ==================== UTILITIES ====================
+local function isValidTarget(part)
+	if not part or not part.Parent then return false end
+	if part.Anchored then return false end
+	if not part:IsA("BasePart") then return false end
+	if part.Size.Magnitude < 0.1 then return false end
+	
+	-- Skip character parts
+	local p = part.Parent
+	while p and p ~= workspace do
+		if p:FindFirstChildOfClass("Humanoid") then return false end
+		p = p.Parent
+	end
+	return true
+end
+
+local function grabPart(part)
+	if controlled[part] then return end
+	if not isValidTarget(part) then return end
+	
+	local origCC = part.CanCollide
+	local origAnch = part.Anchored
+	local origColor = part.Color
+	local origMat = part.Material
+	
+	-- Near-zero mass for snappy response
+	pcall(function()
+		part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, 1, 1)
+		part.Massless = true
+		part.CanCollide = false
+	end)
+	
+	local bp = Instance.new("BodyPosition")
+	bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bp.P = pullStrength
+	bp.D = 8000
+	bp.Position = part.Position
+	bp.Parent = part
+	
+	local bg = Instance.new("BodyGyro")
+	bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+	bg.P = pullStrength
+	bg.D = 8000
+	bg.CFrame = part.CFrame
+	bg.Parent = part
+	
+	controlled[part] = {
+		origCC = origCC,
+		origAnch = origAnch,
+		origColor = origColor,
+		origMat = origMat,
+		bp = bp,
+		bg = bg
+	}
+	partCount = partCount + 1
+end
+
+local function releasePart(part, data)
+	if not data then return end
+	pcall(function()
+		if data.bp and data.bp.Parent then data.bp:Destroy() end
+		if data.bg and data.bg.Parent then data.bg:Destroy() end
+	end)
+	pcall(function()
+		if part and part.Parent then
+			part.CanCollide = data.origCC
+			part.Anchored = data.origAnch
+			part.Color = data.origColor
+			part.Material = data.origMat
+			part.Massless = false
+			part.CustomPhysicalProperties = nil
+		end
+	end)
+end
+
+local function releaseAll()
+	for part, data in pairs(controlled) do
+		releasePart(part, data)
+	end
+	controlled = {}
+	partCount = 0
+	isActive = false
+	currentMode = "none"
+end
+
+local function sweepParts()
+	local char = player.Character
+	local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+	if not root then return end
+	
+	local pos = root.Position
+	local grabbed = 0
+	
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") and not obj.Anchored and not controlled[obj] then
+			local isChar = false
+			local p = obj.Parent
+			while p and p ~= workspace do
+				if p:FindFirstChildOfClass("Humanoid") then isChar = true; break end
+				p = p.Parent
+			end
+			if not isChar then
+				-- Only grab if reasonably close (natural ownership range)
+				if (obj.Position - pos).Magnitude < math.max(radius * 3, 60) then
+					grabPart(obj)
+					grabbed = grabbed + 1
+					if grabbed % 50 == 0 then task.wait() end
+				end
+			end
+		end
+	end
+end
+
+-- ==================== SHAPE MATH ====================
+local PHI = (1 + math.sqrt(5)) / 2
+
+local function getShapePosition(mode, index, total, origin, charCF, t)
+	local n = math.max(total, 1)
+	local i = index - 1
+	
+	if mode == "heart" then
+		local a = (i / n) * math.pi * 2
+		local hx = 16 * math.sin(a)^3
+		local hz = -(13 * math.cos(a) - 5 * math.cos(2*a) - 2 * math.cos(3*a) - math.cos(4*a))
+		return origin + charCF:VectorToWorldSpace(Vector3.new(hx * (radius/16), 2, hz * (radius/16)))
+		
+	elseif mode == "wall" then
+		local cols = math.max(1, math.ceil(math.sqrt(n)))
+		local col = (i % cols) - math.floor(cols/2)
+		local row = math.floor(i / cols) - math.floor(cols/2)
+		return origin + charCF:VectorToWorldSpace(Vector3.new(col * 2.2, row * 2.2 + 2, radius))
+		
+	elseif mode == "box" then
+		local faces = {
+			charCF.LookVector, -charCF.LookVector,
+			charCF.RightVector, -charCF.RightVector,
+			charCF.UpVector, -charCF.UpVector
+		}
+		local fi = (i % 6) + 1
+		local si = math.floor(i / 6)
+		local sp = radius * 0.5
+		local face = faces[fi]
+		local tangent = (fi % 2 == 1) and charCF.RightVector or charCF.LookVector
+		local bit = (si % 2 - 0.5) * sp
+		local stack = (math.floor(si / 2) - 0.5) * sp
+		return origin + face * radius + tangent * bit + charCF.UpVector * stack
+		
+	elseif mode == "ring" then
+		local a = (i / n) * math.pi * 2 + t * 1.5
+		return origin + Vector3.new(math.cos(a) * radius, 1.5 + math.sin(t + i*0.2)*0.5, math.sin(a) * radius)
+		
+	elseif mode == "sphere" then
+		local theta = math.acos(math.clamp(1 - 2 * (i + 0.5) / n, -1, 1))
+		local ang = 2 * math.pi * i / PHI + t * 0.5
+		local r = radius * (0.9 + math.sin(t * 1.2 + i * 0.1) * 0.1)
+		return origin + Vector3.new(
+			r * math.sin(theta) * math.cos(ang),
+			r * math.sin(theta) * math.sin(ang) + 2,
+			r * math.cos(theta)
+		)
+		
+	elseif mode == "spiral" then
+		local turns = 3
+		local h = (i / n) * turns * math.pi * 2
+		local r = radius * (0.2 + 0.8 * (i / n))
+		local y = (i / n) * radius * 1.5
+		return origin + charCF:VectorToWorldSpace(Vector3.new(
+			math.cos(h + t*2) * r,
+			y + 2,
+			math.sin(h + t*2) * r
+		))
+		
+	elseif mode == "star" then
+		local points = 5
+		local outerR = radius
+		local innerR = radius * 0.4
+		local step = math.floor(i / 2)
+		local isOuter = (i % 2) == 0
+		local a = (step / (n/2)) * math.pi * 2 + t * 0.8
+		local r = isOuter and outerR or innerR
+		return origin + charCF:VectorToWorldSpace(Vector3.new(
+			math.cos(a) * r,
+			2 + (isOuter and 1 or 0),
+			math.sin(a) * r
+		))
+		
+	elseif mode == "diamond" then
+		local layer = math.floor(i / 4)
+		local side = i % 4
+		local y = layer * 1.8
+		local r = radius * (1 - layer / math.max(n/4, 1))
+		local dirs = {
+			Vector3.new(1, 0, 0), Vector3.new(0, 0, 1),
+			Vector3.new(-1, 0, 0), Vector3.new(0, 0, -1)
+		}
+		return origin + charCF:VectorToWorldSpace(Vector3.new(
+			dirs[side+1].X * r,
+			y + 1,
+			dirs[side+1].Z * r
+		))
+		
+	elseif mode == "cross" then
+		local arm = i % 3 -- 0=vertical, 1=right, 2=left
+		local dist = math.floor(i / 3) * 1.6
+		if arm == 0 then
+			return origin + charCF:VectorToWorldSpace(Vector3.new(0, dist + 2, radius))
+		elseif arm == 1 then
+			return origin + charCF:VectorToWorldSpace(Vector3.new(dist, 2, radius))
+		else
+			return origin + charCF:VectorToWorldSpace(Vector3.new(-dist, 2, radius))
+		end
+		
+	elseif mode == "wave" then
+		local x = (i / n) * radius * 3 - radius * 1.5
+		local z = math.sin(x * 0.8 + t * 3) * radius * 0.5
+		return origin + charCF:VectorToWorldSpace(Vector3.new(x, 2 + math.cos(t*2 + i*0.3)*1, radius + z))
+		
+	elseif mode == "orbit" then
+		local a = (i / n) * math.pi * 2 + t * (1 + spinSpeed)
+		local r = radius + math.sin(t * 2 + i) * 0.5
+		return origin + Vector3.new(math.cos(a) * r, 2.5, math.sin(a) * r)
+		
+	elseif mode == "helix" then
+		local a = (i / n) * math.pi * 4 + t * 2
+		local r = radius * 0.6
+		local y = ((i / n) - 0.5) * radius * 2
+		return origin + charCF:VectorToWorldSpace(Vector3.new(
+			math.cos(a) * r,
+			y + 3,
+			math.sin(a) * r
+		))
+		
+	elseif mode == "pyramid" then
+		local layer = math.floor(math.sqrt(i))
+		local layerI = i - (layer * layer)
+		local layerN = (layer + 1) * (layer + 1) - (layer * layer)
+		local a = (layerI / math.max(layerN, 1)) * math.pi * 2
+		local r = radius * (1 - layer / math.max(math.sqrt(n), 1))
+		return origin + charCF:VectorToWorldSpace(Vector3.new(
+			math.cos(a) * r,
+			layer * 1.5 + 1,
+			math.sin(a) * r
+		))
+		
+	else
+		return origin + Vector3.new(0, 3, 0)
+	end
+end
+
+-- ==================== MAIN LOOP ====================
+RunService.Heartbeat:Connect(function(dt)
+	if not scriptAlive then return end
+	if not isActive or currentMode == "none" then return end
+	
+	spinAngle = spinAngle + spinSpeed * dt
+	
+	local char = player.Character
+	local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+	if not root then return end
+	
+	local pos = root.Position
+	local cf = root.CFrame
+	local t = tick()
+	
+	-- Cleanup dead parts
+	for part, data in pairs(controlled) do
+		if not part or not part.Parent then
+			controlled[part] = nil
+			partCount = math.max(0, partCount - 1)
+		end
+	end
+	
+	local arr = {}
+	for part, data in pairs(controlled) do
+		if part and part.Parent then
+			table.insert(arr, {part = part, data = data})
+		end
+	end
+	local n = #arr
+	
+	for idx, item in ipairs(arr) do
+		local part = item.part
+		local data = item.data
+		local targetPos = getShapePosition(currentMode, idx, n, pos, cf, t)
+		
+		-- Apply spin offset if enabled
+		if spinSpeed ~= 0 then
+			local phase = idx * (math.pi * 2 / math.max(n, 1))
+			local offset = targetPos - pos
+			local rotated = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), spinAngle + phase) * offset
+			targetPos = pos + rotated
+		end
+		
+		pcall(function()
+			if data.bp and data.bp.Parent then
+				data.bp.P = pullStrength
+				data.bp.D = 8000
+				data.bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+				data.bp.Position = targetPos
+			end
+			if data.bg and data.bg.Parent then
+				data.bg.P = pullStrength
+				data.bg.D = 8000
+				data.bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+				data.bg.CFrame = CFrame.new(targetPos, targetPos + cf.LookVector)
+			end
+		end)
+	end
+end)
+
+-- ==================== AESTHETIC UI ====================
+local function createGUI()
+	local pg = player:WaitForChild("PlayerGui")
+	local old = pg:FindFirstChild("AestheticManip")
+	if old then old:Destroy() end
+	
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "AestheticManip"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 1000
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent = pg
+	
+	-- Main Panel
+	local panel = Instance.new("Frame")
+	panel.Size = UDim2.fromOffset(260, 420)
+	panel.Position = UDim2.new(0, 20, 0.5, -210)
+	panel.BackgroundColor3 = Color3.fromRGB(12, 12, 22)
+	panel.BorderSizePixel = 0
+	panel.Parent = gui
+	panel.ClipsDescendants = true
+	
+	Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+	local stroke = Instance.new("UIStroke", panel)
+	stroke.Color = Color3.fromRGB(100, 80, 200)
+	stroke.Thickness = 1.5
+	
+	-- Gradient overlay
+	local grad = Instance.new("UIGradient", panel)
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 12, 22)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(18, 15, 35)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 22))
+	})
+	grad.Rotation = 45
+	
+	-- Title Bar
+	local titleBar = Instance.new("Frame")
+	titleBar.Size = UDim2.new(1, 0, 0, 36)
+	titleBar.BackgroundColor3 = Color3.fromRGB(20, 16, 40)
+	titleBar.BorderSizePixel = 0
+	titleBar.ZIndex = 10
+	titleBar.Parent = panel
+	Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+	
+	local titleGrad = Instance.new("UIGradient", titleBar)
+	titleGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 20, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 40, 100)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 20, 60))
+	})
+	
+	local titleLbl = Instance.new("TextLabel", titleBar)
+	titleLbl.Text = "◆ AURA MANIPULATOR"
+	titleLbl.Size = UDim2.new(1, -50, 1, 0)
+	titleLbl.Position = UDim2.fromOffset(12, 0)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.TextColor3 = Color3.fromRGB(200, 180, 255)
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamBold
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.ZIndex = 11
+	
+	local glow = Instance.new("UIStroke", titleLbl)
+	glow.Color = Color3.fromRGB(150, 120, 255)
+	glow.Thickness = 0.8
+	
+	-- Close Button
+	local closeBtn = Instance.new("TextButton", titleBar)
+	closeBtn.Text = "×"
+	closeBtn.Size = UDim2.fromOffset(30, 30)
+	closeBtn.Position = UDim2.new(1, -34, 0, 3)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+	closeBtn.TextColor3 = Color3.fromRGB(255, 150, 150)
+	closeBtn.TextSize = 16
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.BorderSizePixel = 0
+	closeBtn.ZIndex = 11
+	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+	
+	-- Draggable logic
+	local dragging = false
+	local dragStart, startPos
+	titleBar.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = Vector2.new(inp.Position.X, inp.Position.Y)
+			startPos = panel.Position
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(inp)
+		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+			local delta = Vector2.new(inp.Position.X, inp.Position.Y) - dragStart
+			panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	
+	-- Scroll Frame
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, 0, 1, -36)
+	scroll.Position = UDim2.fromOffset(0, 36)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 3
+	scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 100, 200)
+	scroll.CanvasSize = UDim2.fromOffset(0, 0)
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.Parent = panel
+	
+	local layout = Instance.new("UIListLayout", scroll)
+	layout.Padding = UDim.new(0, 6)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	
+	local pad = Instance.new("UIPadding", scroll)
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 12)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+	
+	-- Helper functions
+	local function addLabel(text, order, color)
+		local lbl = Instance.new("TextLabel", scroll)
+		lbl.Text = text
+		lbl.Size = UDim2.new(1, 0, 0, 16)
+		lbl.BackgroundTransparency = 1
+		lbl.TextColor3 = color or Color3.fromRGB(180, 160, 255)
+		lbl.TextSize = 10
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.LayoutOrder = order
+		return lbl
+	end
+	
+	local function addButton(text, order, bg, fg, callback)
+		local btn = Instance.new("TextButton", scroll)
+		btn.Text = text
+		btn.Size = UDim2.new(1, 0, 0, 32)
+		btn.BackgroundColor3 = bg
+		btn.TextColor3 = fg
+		btn.TextSize = 10
+		btn.Font = Enum.Font.GothamBold
+		btn.BorderSizePixel = 0
+		btn.LayoutOrder = order
+		btn.AutoButtonColor = true
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		local btnStroke = Instance.new("UIStroke", btn)
+		btnStroke.Color = fg
+		btnStroke.Thickness = 0.6
+		btnStroke.Transparency = 0.7
+		
+		btn.MouseButton1Click:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.new(fg.R*0.3, fg.G*0.3, fg.B*0.3)}):Play()
+			task.wait(0.1)
+			TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = bg}):Play()
+			callback()
+		end)
+		return btn
+	end
+	
+	local function addSetting(label, default, order, onChanged)
+		local frame = Instance.new("Frame", scroll)
+		frame.Size = UDim2.new(1, 0, 0, 42)
+		frame.BackgroundColor3 = Color3.fromRGB(18, 16, 32)
+		frame.BorderSizePixel = 0
+		frame.LayoutOrder = order
+		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+		
+		local lbl = Instance.new("TextLabel", frame)
+		lbl.Text = label
+		lbl.Size = UDim2.new(0.5, -4, 0, 16)
+		lbl.Position = UDim2.fromOffset(8, 4)
+		lbl.BackgroundTransparency = 1
+		lbl.TextColor3 = Color3.fromRGB(160, 140, 220)
+		lbl.TextSize = 9
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		
+		local box = Instance.new("TextBox", frame)
+		box.Text = tostring(default)
+		box.Size = UDim2.new(0.35, 0, 0, 24)
+		box.Position = UDim2.new(0.55, 0, 0, 9)
+		box.BackgroundColor3 = Color3.fromRGB(30, 26, 55)
+		box.TextColor3 = Color3.fromRGB(255, 255, 255)
+		box.TextSize = 11
+		box.Font = Enum.Font.GothamBold
+		box.ClearTextOnFocus = false
+		box.BorderSizePixel = 0
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+		
+		box.FocusLost:Connect(function(enter)
+			if enter then
+				local num = tonumber(box.Text)
+				if num then onChanged(num) end
+			end
+		end)
+	end
+	
+	-- Status
+	addLabel("STATUS", 0, Color3.fromRGB(140, 120, 220))
+	local statusLbl = addLabel("IDLE  |  0 PARTS", 1, Color3.fromRGB(100, 255, 160))
+	
+	task.spawn(function()
+		while gui.Parent do
+			statusLbl.Text = isActive and string.upper(currentMode).."  |  "..partCount.." PARTS" or "IDLE  |  "..partCount.." PARTS"
+			statusLbl.TextColor3 = isActive and Color3.fromRGB(100, 255, 180) or Color3.fromRGB(255, 120, 120)
+			task.wait(0.3)
+		end
+	end)
+	
+	-- Settings
+	addLabel("SETTINGS", 2, Color3.fromRGB(140, 120, 220))
+	addSetting("RADIUS", radius, 3, function(v)
+		radius = math.clamp(v, 1, 100)
+	end)
+	addSetting("STRENGTH", pullStrength, 4, function(v)
+		pullStrength = math.clamp(v, 1000, 1e8)
+		for _, data in pairs(controlled) do
+			pcall(function()
+				if data.bp then data.bp.P = pullStrength end
+				if data.bg then data.bg.P = pullStrength end
+			end)
+		end
+	end)
+	addSetting("SPIN", spinSpeed, 5, function(v)
+		spinSpeed = v
+	end)
+	
+	-- Shapes
+	addLabel("FORMATIONS", 10, Color3.fromRGB(140, 120, 220))
+	
+	local shapes = {
+		{txt = "HEART", mode = "heart", col = Color3.fromRGB(255, 100, 160)},
+		{txt = "WALL", mode = "wall", col = Color3.fromRGB(255, 200, 80)},
+		{txt = "BOX", mode = "box", col = Color3.fromRGB(160, 255, 100)},
+		{txt = "RING", mode = "ring", col = Color3.fromRGB(80, 220, 255)},
+		{txt = "SPHERE", mode = "sphere", col = Color3.fromRGB(120, 180, 255)},
+		{txt = "SPIRAL", mode = "spiral", col = Color3.fromRGB(200, 120, 255)},
+		{txt = "STAR", mode = "star", col = Color3.fromRGB(255, 220, 80)},
+		{txt = "DIAMOND", mode = "diamond", col = Color3.fromRGB(180, 255, 220)},
+		{txt = "CROSS", mode = "cross", col = Color3.fromRGB(255, 160, 80)},
+		{txt = "WAVE", mode = "wave", col = Color3.fromRGB(100, 255, 200)},
+		{txt = "HELIX", mode = "helix", col = Color3.fromRGB(220, 100, 255)},
+		{txt = "PYRAMID", mode = "pyramid", col = Color3.fromRGB(255, 255, 180)},
+	}
+	
+	local grid = Instance.new("Frame", scroll)
+	grid.Size = UDim2.new(1, 0, 0, math.ceil(#shapes / 2) * 34)
+	grid.BackgroundTransparency = 1
+	grid.LayoutOrder = 11
+	
+	local gridLayout = Instance.new("UIGridLayout", grid)
+	gridLayout.CellSize = UDim2.new(0.5, -4, 0, 30)
+	gridLayout.CellPadding = UDim2.fromOffset(4, 4)
+	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	
+	for _, s in ipairs(shapes) do
+		addButton(s.txt, 0, Color3.fromRGB(24, 20, 45), s.col, function()
+			currentMode = s.mode
+			isActive = true
+			sweepParts()
+		end)
+	end
+	
+	-- Actions
+	addLabel("ACTIONS", 20, Color3.fromRGB(140, 120, 220))
+	addButton("SCAN / REFRESH", 21, Color3.fromRGB(20, 50, 30), Color3.fromRGB(100, 255, 140), function()
+		sweepParts()
+	end)
+	addButton("RELEASE ALL", 22, Color3.fromRGB(60, 20, 20), Color3.fromRGB(255, 120, 120), function()
+		releaseAll()
+	end)
+	addButton("CLOSE GUI", 23, Color3.fromRGB(40, 20, 20), Color3.fromRGB(255, 180, 180), function()
+		releaseAll()
+		gui:Destroy()
+	end)
+	
+	closeBtn.MouseButton1Click:Connect(function()
+		releaseAll()
+		gui:Destroy()
+	end)
+end
+
+-- ==================== INPUTS ====================
+UserInputService.InputBegan:Connect(function(inp, processed)
+	if processed then return end
+	if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	
+	local ray = camera:
