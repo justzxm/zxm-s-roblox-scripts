@@ -626,4 +626,20 @@ UserInputService.InputBegan:Connect(function(inp, processed)
 	if processed then return end
 	if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 	
-	local ray = camera:
+	local ray = camera:ScreenPointToRay(inp.Position.X, inp.Position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local char = player.Character
+	if char then params.FilterDescendantsInstances = {char} end
+	
+	local result = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+	if result and result.Instance then
+		local part = result.Instance
+		if isValidTarget(part) and not controlled[part] then
+			grabPart(part)
+		end
+	end
+end)
+
+-- ==================== INIT ====================
+createGUI()
