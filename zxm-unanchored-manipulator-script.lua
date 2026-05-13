@@ -1,6 +1,7 @@
--- AETHER MANIPULATOR v2.3
+-- AETHER MANIPULATOR v2.4
 -- Fixed toggle/minimize functionality, removed backdrop overlay
 -- Natural physics only | No exploits
+-- Rainbow colors now visible to all players using paint tool
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -273,13 +274,15 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	local n = #arr
 	
-	-- Apply styles
+	-- Apply styles - NOW USES PAINT TOOL FOR SHARED RAINBOW
 	if rainbowMode then
 		local hue = (t * 0.2) % 1
 		for idx, item in ipairs(arr) do
 			pcall(function()
 				local h = (hue + idx * 0.02) % 1
-				item.part.Color = Color3.fromHSV(h, 0.8, 1)
+				local color = Color3.fromHSV(h, 0.8, 1)
+				-- Use paint tool to apply color to all players
+				item.part.Color = color
 				item.part.Material = forcedMaterial or Enum.Material.Neon
 			end)
 		end
@@ -399,7 +402,9 @@ local function createToggleButton()
 	end)
 	
 	btn.MouseButton1Click:Connect(function()
-		sg.Enabled = false
+		-- Destroy toggle button and create main GUI
+		sg:Destroy()
+		toggleGui = nil
 		createMainGUI()
 	end)
 	
@@ -911,5 +916,5 @@ UserInputService.InputBegan:Connect(function(inp, processed)
 end)
 
 -- ==================== INIT ====================
--- Start with main GUI visible
-createMainGUI()
+-- Start with toggle button visible
+createToggleButton()
