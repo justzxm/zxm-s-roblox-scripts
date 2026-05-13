@@ -47,6 +47,9 @@ local function grabPart(part)
 	if controlled[part] then return end
 	if not isValidTarget(part) then return end
 	
+	-- Guard against nil dereference
+	if not part or not part.Parent then return end
+	
 	local origCC = part.CanCollide
 	local origAnch = part.Anchored
 	local origColor = part.Color
@@ -125,7 +128,7 @@ local function sweepParts()
 			end
 			if not isChar and (obj.Position - pos).Magnitude < math.max(radius * 3, 60) then
 				grabPart(obj); grabbed += 1
-				if grabbed % 50 == 0 then task.wait() end
+				if grabbed % 20 == 0 then task.wait() end
 			end
 		end
 	end
@@ -175,7 +178,7 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		
 	elseif mode == "ring" then
 		local a = (i / n) * math.pi * 2 + t * 1.5
-		return origin + Vector3.new(math.cos(a) * radius, 1.5 + math.sin(t + i*0.2)*0.5, math.sin(a) * radius)
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius, 1.5 + math.sin(t + i*0.2)*0.5, math.sin(a) * radius))
 		
 	elseif mode == "sphere" then
 		local theta = math.acos(math.clamp(1 - 2 * (i + 0.5) / n, -1, 1))
@@ -242,6 +245,10 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local a = (petal / petals) * math.pi * 2 + t * 0.5
 		local r = radius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
+		
+	elseif mode == "orbit" then
+		local a = (i / n) * math.pi * 2 + t * spinSpeed
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius * 0.7, 2, math.sin(a) * radius * 0.7))
 		
 	else
 		return origin + Vector3.new(0, 3, 0)
