@@ -1,5 +1,5 @@
--- AETHER MANIPULATOR v2.2
--- Fixed tab visibility, starts open with main GUI
+-- AETHER MANIPULATOR v2.3
+-- Fixed toggle/minimize functionality, removed backdrop overlay
 -- Natural physics only | No exploits
 
 local Players = game:GetService("Players")
@@ -341,7 +341,9 @@ end
 
 local function createToggleButton()
 	local pg = player:WaitForChild("PlayerGui")
-	if toggleGui then toggleGui:Destroy() end
+	-- Clean up old toggle gui if it exists
+	local oldToggle = pg:FindFirstChild("AetherToggle")
+	if oldToggle then oldToggle:Destroy() end
 	
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "AetherToggle"
@@ -406,7 +408,9 @@ end
 
 local function createMainGUI()
 	local pg = player:WaitForChild("PlayerGui")
-	if mainGui then mainGui:Destroy() end
+	-- Clean up old main gui if it exists
+	local oldMain = pg:FindFirstChild("AetherMain")
+	if oldMain then oldMain:Destroy() end
 	
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "AetherMain"
@@ -415,13 +419,7 @@ local function createMainGUI()
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = pg
 	
-	local backdrop = Instance.new("Frame")
-	backdrop.Size = UDim2.new(1, 0, 1, 0)
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.6
-	backdrop.BorderSizePixel = 0
-	backdrop.ZIndex = 0
-	backdrop.Parent = sg
+	-- NO backdrop overlay - removed for cleaner UI
 	
 	local panel = Instance.new("Frame")
 	panel.Size = UDim2.fromOffset(340, 460)
@@ -512,7 +510,8 @@ local function createMainGUI()
 	minBtn.MouseButton1Click:Connect(function()
 		sg:Destroy()
 		mainGui = nil
-		if toggleGui then toggleGui.Enabled = true else createToggleButton() end
+		-- Create fresh toggle button on minimize
+		createToggleButton()
 	end)
 	
 	local closeBtn = Instance.new("TextButton", titleArea)
@@ -532,6 +531,7 @@ local function createMainGUI()
 		releaseAll()
 		sg:Destroy()
 		mainGui = nil
+		-- Clean up toggle button too when closing
 		if toggleGui then toggleGui:Destroy(); toggleGui = nil end
 	end)
 	
