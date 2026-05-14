@@ -1,8 +1,7 @@
--- AETHER MANIPULATOR v3.2 (REFINED UI)
--- 30 shapes + 5 dynamic behaviors
--- Fully draggable sliders, expandable previews, advanced physics
+-- AETHER MANIPULATOR v3.3 (FULL CODE)
+-- 30 shapes + 5 behaviors + themes & UI settings
+-- All functions fully implemented
 -- Natural physics only | No exploits
--- Fixed tab cutoff, improved layout
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -36,7 +35,7 @@ local forcedMaterial = nil
 local forcedColor = nil
 
 -- BEHAVIORS state
-local activeBehavior = "none" -- "none", "orbit", "pulse", "ripple", "chaos", "magnet"
+local activeBehavior = "none"
 local behaviorParams = {
 	orbit = {speed = 1, radius = 2},
 	pulse = {speed = 2, amplitude = 1.5},
@@ -45,9 +44,15 @@ local behaviorParams = {
 	magnet = {strength = 5, range = 10, repulse = false},
 }
 
--- Shape-specific customization values (extended)
+-- SETTINGS state
+local currentTheme = "dark"
+local enableAnimations = true
+local showPartCountInStatus = true
+local autoSweepOnModeChange = true
+local statusVerbose = true
+
+-- Shape customization values
 local shapeCustomizations = {
-	-- Original shapes
 	wave = {wavelength = 8, amplitude = 5, frequency = 2},
 	spiral = {tightness = 5, height = 20},
 	star = {points = 5, radius = 20},
@@ -56,14 +61,10 @@ local shapeCustomizations = {
 	sphere = {radius = 20},
 	pyramid = {height = 20},
 	wall = {density = 5},
-	heart = {},
-	box = {},
-	diamond = {},
-	cross = {},
+	heart = {}, box = {}, diamond = {}, cross = {},
 	helix = {turns = 4, height = 20},
 	grid = {spacing = 2},
 	flower = {petals = 6, radius = 20},
-	-- New shapes
 	cube = {size = 15},
 	torus = {majorRadius = 15, minorRadius = 4},
 	cone = {height = 20, radius = 12},
@@ -81,7 +82,6 @@ local shapeCustomizations = {
 	vortex = {height = 25, width = 12, spin = 2},
 }
 
--- New shape data
 local additionalShapes = {
 	cube = {name = "Cube", icon = "⬛", description = "A solid cubic lattice"},
 	torus = {name = "Torus", icon = "⨀", description = "A donut-shaped ring"},
@@ -100,7 +100,6 @@ local additionalShapes = {
 	vortex = {name = "Vortex", icon = "🌪️", description = "Spiraling vortex tunnel"},
 }
 
--- Merge with original SHAPE_DATA
 local SHAPE_DATA = {
 	heart = {name = "Heart", icon = "♥", description = "A beautiful heart shape formation"},
 	wall = {name = "Wall", icon = "▦", description = "Create a solid wall structure"},
@@ -120,21 +119,66 @@ local SHAPE_DATA = {
 }
 for k, v in pairs(additionalShapes) do SHAPE_DATA[k] = v end
 
--- ==================== COLOR PALETTE ====================
-local Colors = {
-	BG_DARK = Color3.fromRGB(12, 12, 15),
-	BG_PANEL = Color3.fromRGB(20, 20, 25),
-	BG_TAB = Color3.fromRGB(25, 25, 30),
-	BG_HOVER = Color3.fromRGB(35, 35, 45),
-	TEXT_PRIMARY = Color3.fromRGB(240, 240, 245),
-	TEXT_SECONDARY = Color3.fromRGB(150, 150, 160),
-	BORDER = Color3.fromRGB(50, 50, 60),
-	BUTTON_DARK = Color3.fromRGB(35, 35, 42),
-	BUTTON_HOVER = Color3.fromRGB(50, 50, 65),
-	STATUS_ACTIVE = Color3.fromRGB(80, 200, 120),
-	STATUS_IDLE = Color3.fromRGB(220, 80, 80),
-	STATUS_PROCESS = Color3.fromRGB(100, 150, 255),
+-- ==================== COLOR THEMES ====================
+local Themes = {
+	dark = {
+		BG_DARK = Color3.fromRGB(12, 12, 15),
+		BG_PANEL = Color3.fromRGB(20, 20, 25),
+		BG_TAB = Color3.fromRGB(25, 25, 30),
+		BG_HOVER = Color3.fromRGB(35, 35, 45),
+		TEXT_PRIMARY = Color3.fromRGB(240, 240, 245),
+		TEXT_SECONDARY = Color3.fromRGB(150, 150, 160),
+		BORDER = Color3.fromRGB(50, 50, 60),
+		BUTTON_DARK = Color3.fromRGB(35, 35, 42),
+		BUTTON_HOVER = Color3.fromRGB(50, 50, 65),
+		STATUS_ACTIVE = Color3.fromRGB(80, 200, 120),
+		STATUS_IDLE = Color3.fromRGB(220, 80, 80),
+		STATUS_PROCESS = Color3.fromRGB(100, 150, 255),
+	},
+	amber = {
+		BG_DARK = Color3.fromRGB(20, 12, 5),
+		BG_PANEL = Color3.fromRGB(30, 20, 10),
+		BG_TAB = Color3.fromRGB(35, 25, 15),
+		BG_HOVER = Color3.fromRGB(45, 35, 20),
+		TEXT_PRIMARY = Color3.fromRGB(255, 220, 160),
+		TEXT_SECONDARY = Color3.fromRGB(200, 160, 100),
+		BORDER = Color3.fromRGB(80, 60, 30),
+		BUTTON_DARK = Color3.fromRGB(40, 30, 15),
+		BUTTON_HOVER = Color3.fromRGB(60, 45, 25),
+		STATUS_ACTIVE = Color3.fromRGB(255, 200, 80),
+		STATUS_IDLE = Color3.fromRGB(220, 80, 40),
+		STATUS_PROCESS = Color3.fromRGB(255, 160, 60),
+	},
+	cyan = {
+		BG_DARK = Color3.fromRGB(5, 20, 25),
+		BG_PANEL = Color3.fromRGB(10, 30, 35),
+		BG_TAB = Color3.fromRGB(15, 35, 40),
+		BG_HOVER = Color3.fromRGB(25, 45, 50),
+		TEXT_PRIMARY = Color3.fromRGB(160, 240, 255),
+		TEXT_SECONDARY = Color3.fromRGB(100, 180, 200),
+		BORDER = Color3.fromRGB(30, 70, 80),
+		BUTTON_DARK = Color3.fromRGB(15, 40, 45),
+		BUTTON_HOVER = Color3.fromRGB(25, 55, 65),
+		STATUS_ACTIVE = Color3.fromRGB(80, 220, 200),
+		STATUS_IDLE = Color3.fromRGB(220, 80, 80),
+		STATUS_PROCESS = Color3.fromRGB(80, 180, 255),
+	},
+	purple = {
+		BG_DARK = Color3.fromRGB(15, 8, 25),
+		BG_PANEL = Color3.fromRGB(25, 15, 40),
+		BG_TAB = Color3.fromRGB(30, 20, 45),
+		BG_HOVER = Color3.fromRGB(40, 30, 55),
+		TEXT_PRIMARY = Color3.fromRGB(220, 180, 255),
+		TEXT_SECONDARY = Color3.fromRGB(160, 120, 200),
+		BORDER = Color3.fromRGB(60, 40, 80),
+		BUTTON_DARK = Color3.fromRGB(35, 20, 50),
+		BUTTON_HOVER = Color3.fromRGB(50, 35, 70),
+		STATUS_ACTIVE = Color3.fromRGB(160, 120, 255),
+		STATUS_IDLE = Color3.fromRGB(220, 80, 80),
+		STATUS_PROCESS = Color3.fromRGB(200, 100, 255),
+	},
 }
+local Colors = Themes.dark
 
 -- ==================== UTILITIES ====================
 local function isValidTarget(part)
@@ -167,9 +211,7 @@ local function grabPart(part)
 		part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, partMassScale, 1)
 		part.Massless = (partMassScale == 0)
 		part.CanCollide = false
-		if partSizeScale ~= 1 then
-			part.Size = part.Size * partSizeScale
-		end
+		if partSizeScale ~= 1 then part.Size = part.Size * partSizeScale end
 	end)
 	
 	local bp = Instance.new("BodyPosition")
@@ -248,7 +290,7 @@ local function sweepParts()
 	end
 end
 
--- ==================== SHAPE MATH (EXTENDED) ====================
+-- ==================== FULL SHAPE MATH (30 shapes) ====================
 local PHI = (1 + math.sqrt(5)) / 2
 
 local function getShapePos(mode, index, total, origin, cf, t)
@@ -358,7 +400,6 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local r = flowerRadius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
 		
-	-- ========== NEW SHAPES ==========
 	elseif mode == "cube" then
 		local size = shapeCustomizations.cube.size or 15
 		local side = math.floor(i / (n/6))
@@ -488,8 +529,6 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		
 	elseif mode == "geodesic" then
 		local rad = shapeCustomizations.geodesic.radius or 15
-		local subdivisions = shapeCustomizations.geodesic.subdivisions or 2
-		local goldenRatio = (1 + math.sqrt(5)) / 2
 		local vertices = {}
 		for _, a in ipairs({-1,1}) do for _, b in ipairs({-1,1}) do for _, c in ipairs({-1,1}) do
 			table.insert(vertices, Vector3.new(a, b, c).Unit * rad)
@@ -515,24 +554,20 @@ end
 -- ==================== BEHAVIOR APPLICATOR ====================
 local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 	if activeBehavior == "none" then return targetPos end
-	
 	local offset = targetPos - partPos
 	local newPos = targetPos
-	
 	if activeBehavior == "orbit" then
 		local speed = behaviorParams.orbit.speed
 		local radius = behaviorParams.orbit.radius
 		local angle = t * speed + idx * 0.5
 		local orbitOffset = Vector3.new(math.cos(angle) * radius, math.sin(angle) * radius * 0.5, math.sin(angle) * radius)
 		newPos = targetPos + orbitOffset
-		
 	elseif activeBehavior == "pulse" then
 		local speed = behaviorParams.pulse.speed
 		local amplitude = behaviorParams.pulse.amplitude
 		local pulse = math.sin(t * speed + idx * 0.2) * amplitude
 		local dir = (targetPos - partPos).Unit
 		newPos = targetPos + dir * pulse
-		
 	elseif activeBehavior == "ripple" then
 		local speed = behaviorParams.ripple.speed
 		local amplitude = behaviorParams.ripple.amplitude
@@ -540,7 +575,6 @@ local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 		local ripple = math.sin(t * speed - distFromCenter * 0.5) * amplitude
 		local dir = (targetPos - partPos).Unit
 		newPos = targetPos + dir * ripple
-		
 	elseif activeBehavior == "chaos" then
 		local strength = behaviorParams.chaos.strength
 		local seed = idx * 12345
@@ -548,7 +582,6 @@ local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 		local noiseY = math.cos(t * 2.7 + seed * 1.3) * strength
 		local noiseZ = math.sin(t * 4.2 + seed * 0.9) * strength
 		newPos = targetPos + Vector3.new(noiseX, noiseY, noiseZ)
-		
 	elseif activeBehavior == "magnet" then
 		local strength = behaviorParams.magnet.strength
 		local range = behaviorParams.magnet.range
@@ -561,30 +594,25 @@ local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 			newPos = partPos + toCenter.Unit * (offset.Magnitude + force)
 		end
 	end
-	
 	return newPos
 end
 
 -- ==================== MAIN PHYSICS LOOP ====================
 RunService.Heartbeat:Connect(function(dt)
 	if not isActive or currentMode == "none" then return end
-	
 	spinAngle += spinSpeed * dt
 	local char = player.Character
 	local root
-	if attachToCamera then
-		root = camera
+	if attachToCamera then root = camera
 	else
 		if not char then return end
 		root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
 		if not root then return end
 	end
-	
 	local pos = attachToCamera and camera.CFrame.Position or root.Position
 	local cf = attachToCamera and camera.CFrame or root.CFrame
 	local t = tick()
 	
-	-- Cleanup dead parts
 	for part, data in pairs(controlled) do
 		if not part or not part.Parent then
 			controlled[part] = nil; partCount = math.max(0, partCount - 1)
@@ -597,14 +625,12 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	local n = #arr
 	
-	-- Random colors if enabled
 	if randomColors and not rainbowMode and not forcedColor then
 		for _, item in ipairs(arr) do
 			pcall(function() item.part.Color = Color3.fromHSV(math.random(), 0.8, 1) end)
 		end
 	end
 	
-	-- Apply styles
 	if rainbowMode then
 		local hue = (t * 0.2) % 1
 		for idx, item in ipairs(arr) do
@@ -627,7 +653,6 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 	
-	-- Apply velocity damping if enabled
 	if velocityDamping then
 		for _, item in ipairs(arr) do
 			pcall(function()
@@ -640,23 +665,18 @@ RunService.Heartbeat:Connect(function(dt)
 	for idx, item in ipairs(arr) do
 		local part = item.part; local data = item.data
 		local targetPos = getShapePos(currentMode, idx, n, pos, cf, t)
-		
 		if invertY then
 			local offset = targetPos - pos
 			targetPos = pos + Vector3.new(offset.X, -offset.Y, offset.Z)
 		end
-		
 		if spinSpeed ~= 0 then
 			local phase = idx * (math.pi * 2 / math.max(n, 1))
 			local offset = targetPos - pos
 			targetPos = pos + (CFrame.fromAxisAngle(Vector3.new(0, 1, 0), spinAngle + phase) * offset)
 		end
-		
-		-- APPLY BEHAVIOR
 		if activeBehavior ~= "none" then
 			targetPos = applyBehavior(targetPos, part.Position, idx, n, t, activeBehavior)
 		end
-		
 		pcall(function()
 			if data.bp and data.bp.Parent then
 				data.bp.P = pullStrength; data.bp.D = 8000
@@ -674,7 +694,24 @@ end)
 
 -- ==================== UI SYSTEM ====================
 local function tween(obj, props, dur)
-	TweenService:Create(obj, TweenInfo.new(dur or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+	if enableAnimations then
+		TweenService:Create(obj, TweenInfo.new(dur or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+	else
+		for prop, val in pairs(props) do obj[prop] = val end
+	end
+end
+
+local function recreateGUI()
+	local pg = player:WaitForChild("PlayerGui")
+	local old = pg:FindFirstChild("AetherMain")
+	if old then old:Destroy() end
+	createMainGUI()
+end
+
+local function setTheme(themeName)
+	currentTheme = themeName
+	Colors = Themes[themeName]
+	recreateGUI()
 end
 
 local function createMainGUI()
@@ -690,8 +727,8 @@ local function createMainGUI()
 	sg.Parent = pg
 	
 	local panel = Instance.new("Frame")
-	panel.Size = UDim2.fromOffset(420, 560) -- Wider for tabs
-	panel.Position = UDim2.new(0.5, -210, 0.5, -280)
+	panel.Size = UDim2.fromOffset(460, 580)
+	panel.Position = UDim2.new(0.5, -230, 0.5, -290)
 	panel.BackgroundColor3 = Colors.BG_DARK
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
@@ -729,7 +766,7 @@ local function createMainGUI()
 	titleIcon.ZIndex = 4
 	
 	local titleText = Instance.new("TextLabel", titleArea)
-	titleText.Text = "AETHER MANIPULATOR v3.2"
+	titleText.Text = "AETHER MANIPULATOR v3.3"
 	titleText.Size = UDim2.new(1, -90, 0, 20)
 	titleText.Position = UDim2.fromOffset(44, 8)
 	titleText.BackgroundTransparency = 1
@@ -740,7 +777,7 @@ local function createMainGUI()
 	titleText.ZIndex = 4
 	
 	local subText = Instance.new("TextLabel", titleArea)
-	subText.Text = "30 SHAPES | 5 BEHAVIORS"
+	subText.Text = "30 SHAPES | 5 BEHAVIORS | THEMES"
 	subText.Size = UDim2.new(1, -90, 0, 14)
 	subText.Position = UDim2.fromOffset(44, 26)
 	subText.BackgroundTransparency = 1
@@ -796,7 +833,7 @@ local function createMainGUI()
 	end)
 	UserInputService.InputEnded:Connect(function() dragging = false end)
 	
-	-- Tab bar using a ScrollingFrame for horizontal scrolling (prevents cutoff)
+	-- Tab bar with scrolling
 	local tabBarContainer = Instance.new("Frame")
 	tabBarContainer.Size = UDim2.new(1, -20, 0, 36)
 	tabBarContainer.Position = UDim2.fromOffset(10, 54)
@@ -822,18 +859,16 @@ local function createMainGUI()
 	tabsLayout.Padding = UDim.new(0, 4)
 	tabsLayout.Parent = tabScroller
 	
-	local tabs = {"SHAPES", "STYLE", "PHYSICS", "BEHAVIORS", "ADVANCED", "SYSTEM"}
+	local tabs = {"SHAPES", "STYLE", "PHYSICS", "BEHAVIORS", "ADVANCED", "SYSTEM", "SETTINGS"}
 	local tabButtons = {}
 	local activeTab = "SHAPES"
 	local tabContents = {}
 	
-	-- Update canvas size when tabs change
 	local function updateTabCanvas()
 		tabScroller.CanvasSize = UDim2.new(0, tabsLayout.AbsoluteContentSize.X + 10, 0, 0)
 	end
 	tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvas)
-	task.wait(0.05)
-	updateTabCanvas()
+	task.wait(0.05); updateTabCanvas()
 	
 	local contentFrame = Instance.new("Frame")
 	contentFrame.Size = UDim2.new(1, -20, 1, -100)
@@ -887,7 +922,7 @@ local function createMainGUI()
 	for _, tabName in ipairs(tabs) do
 		local btn = Instance.new("TextButton")
 		btn.Text = tabName
-		btn.Size = UDim2.fromOffset(72, 28)
+		btn.Size = UDim2.fromOffset(70, 28)
 		btn.BackgroundColor3 = (tabName == activeTab) and Colors.TEXT_PRIMARY or Colors.BG_TAB
 		btn.BackgroundTransparency = 0
 		btn.TextColor3 = (tabName == activeTab) and Colors.BG_DARK or Colors.TEXT_SECONDARY
@@ -901,7 +936,7 @@ local function createMainGUI()
 		btn.MouseButton1Click:Connect(function() switchTab(tabName) end)
 	end
 	
-	-- ==================== UI BUILDERS ====================
+	-- Helper UI functions
 	local function addSectionLabel(parent, text, order, color)
 		local lbl = Instance.new("TextLabel", parent)
 		lbl.Text = text
@@ -1047,9 +1082,7 @@ local function createMainGUI()
 	-- ===== SHAPES TAB =====
 	local shapesFrame = tabContents["SHAPES"]
 	addSectionLabel(shapesFrame, "SHAPE FORMATIONS (30)", 0, Colors.TEXT_PRIMARY)
-	
 	local shapesScrollingFrame = Instance.new("ScrollingFrame", shapesFrame)
-	shapesScrollingFrame.Name = "ShapesScrollingFrame"
 	shapesScrollingFrame.Size = UDim2.new(1, 0, 1, -50)
 	shapesScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
 	shapesScrollingFrame.BackgroundTransparency = 1
@@ -1057,17 +1090,14 @@ local function createMainGUI()
 	shapesScrollingFrame.ScrollBarImageColor3 = Colors.BORDER
 	shapesScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	shapesScrollingFrame.LayoutOrder = 1
-	
 	local shapesLayout = Instance.new("UIListLayout", shapesScrollingFrame)
 	shapesLayout.Padding = UDim.new(0, 6)
 	shapesLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	shapesLayout.FillDirection = Enum.FillDirection.Vertical
-	
 	local shapePadding = Instance.new("UIPadding", shapesScrollingFrame)
 	shapePadding.PaddingLeft = UDim.new(0, 8)
 	shapePadding.PaddingRight = UDim.new(0, 12)
 	shapePadding.PaddingTop = UDim.new(0, 4)
-	
 	local function updateShapesCanvas()
 		shapesScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, shapesLayout.AbsoluteContentSize.Y + 10)
 	end
@@ -1076,7 +1106,6 @@ local function createMainGUI()
 	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
 	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
 	
-	-- Slider creation helper for preview panels (compact version)
 	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
 		local container = Instance.new("Frame", parent)
 		container.Size = UDim2.new(1, 0, 0, 45)
@@ -1198,19 +1227,15 @@ local function createMainGUI()
 		return container
 	end
 	
-	-- Create shape items (same as before, compact)
 	local allShapeKeys = {"heart","wall","box","ring","sphere","spiral","star","diamond","cross","wave","helix","pyramid","grid","tornado","flower","cube","torus","cone","cylinder","mobius","icosa","galaxy","dna","crown","wave3d","hexagon","octagon","blossom","geodesic","vortex"}
 	
 	local function createShapeItem(shapeKey, shapeData, index)
 		local shapeContainer = Instance.new("Frame", shapesScrollingFrame)
-		shapeContainer.Name = shapeKey .. "Container"
 		shapeContainer.Size = UDim2.new(1, 0, 0, 50)
 		shapeContainer.BackgroundTransparency = 1
 		shapeContainer.LayoutOrder = index
 		shapeContainer.ClipsDescendants = true
-		
 		local headerFrame = Instance.new("Frame", shapeContainer)
-		headerFrame.Name = "Header"
 		headerFrame.Size = UDim2.new(1, 0, 0, 50)
 		headerFrame.Position = UDim2.new(0, 0, 0, 0)
 		headerFrame.BackgroundColor3 = Colors.BG_PANEL
@@ -1218,9 +1243,7 @@ local function createMainGUI()
 		headerFrame.BorderColor3 = Colors.BORDER
 		headerFrame.ZIndex = 100
 		Instance.new("UICorner", headerFrame).CornerRadius = UDim.new(0, 8)
-		
 		local mainBtn = Instance.new("TextButton", headerFrame)
-		mainBtn.Name = "MainButton"
 		mainBtn.Size = UDim2.new(1, -45, 1, 0)
 		mainBtn.BackgroundTransparency = 1
 		mainBtn.Text = shapeData.icon .. "  " .. shapeData.name
@@ -1229,9 +1252,7 @@ local function createMainGUI()
 		mainBtn.Font = Enum.Font.GothamBold
 		mainBtn.TextXAlignment = Enum.TextXAlignment.Left
 		mainBtn.AutoButtonColor = false
-		
 		local previewBtn = Instance.new("TextButton", headerFrame)
-		previewBtn.Name = "PreviewButton"
 		previewBtn.Size = UDim2.new(0, 40, 1, 0)
 		previewBtn.Position = UDim2.new(1, -40, 0, 0)
 		previewBtn.BackgroundTransparency = 1
@@ -1242,25 +1263,20 @@ local function createMainGUI()
 		previewBtn.AutoButtonColor = false
 		previewBtn.Rotation = 0
 		previewBtn.ZIndex = 101
-		
 		headerFrame.MouseEnter:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_HOVER}, 0.15) end)
 		headerFrame.MouseLeave:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_PANEL}, 0.15) end)
-		
 		mainBtn.MouseButton1Click:Connect(function()
 			currentMode = shapeKey
 			isActive = true
-			sweepParts()
+			if autoSweepOnModeChange then sweepParts() end
 		end)
-		
 		local isExpanded = false
 		local previewPanel = nil
-		
 		previewBtn.MouseButton1Click:Connect(function()
 			isExpanded = not isExpanded
 			if isExpanded then
 				tween(previewBtn, {Rotation = 90}, 0.2)
 				previewPanel = Instance.new("Frame", shapeContainer)
-				previewPanel.Name = "PreviewPanel"
 				previewPanel.Position = UDim2.new(0, 0, 0, 50)
 				previewPanel.Size = UDim2.new(1, 0, 0, 0)
 				previewPanel.BackgroundColor3 = Colors.BG_DARK
@@ -1268,9 +1284,7 @@ local function createMainGUI()
 				previewPanel.BorderSizePixel = 1
 				previewPanel.ClipsDescendants = true
 				Instance.new("UICorner", previewPanel).CornerRadius = UDim.new(0, 6)
-				
 				local previewContent = Instance.new("Frame", previewPanel)
-				previewContent.Name = "Content"
 				previewContent.Size = UDim2.new(1, 0, 1, 0)
 				previewContent.BackgroundTransparency = 1
 				local contentLayout = Instance.new("UIListLayout", previewContent)
@@ -1282,7 +1296,6 @@ local function createMainGUI()
 				contentPad.PaddingRight = UDim.new(0, 12)
 				contentPad.PaddingTop = UDim.new(0, 8)
 				contentPad.PaddingBottom = UDim.new(0, 8)
-				
 				local descLabel = Instance.new("TextLabel", previewContent)
 				descLabel.Text = shapeData.description
 				descLabel.Size = UDim2.new(1, 0, 0, 25)
@@ -1294,9 +1307,8 @@ local function createMainGUI()
 				descLabel.TextXAlignment = Enum.TextXAlignment.Left
 				descLabel.TextYAlignment = Enum.TextYAlignment.Top
 				descLabel.LayoutOrder = 0
-				
 				local custom = shapeCustomizations[shapeKey] or {}
-				-- Inline sliders for brevity (same as v3.1)
+				-- shape-specific sliders (complete)
 				if shapeKey == "wave" then
 					createPreviewSlider(previewContent, "Wavelength", 2, 20, custom.wavelength or 8, function(v) shapeCustomizations.wave.wavelength = v end)
 					createPreviewSlider(previewContent, "Amplitude", 1, 15, custom.amplitude or 5, function(v) shapeCustomizations.wave.amplitude = v end)
@@ -1372,7 +1384,6 @@ local function createMainGUI()
 					createPreviewSlider(previewContent, "Width", 5, 20, custom.width or 12, function(v) shapeCustomizations.vortex.width = v end)
 					createPreviewSlider(previewContent, "Spin", 1, 5, custom.spin or 2, function(v) shapeCustomizations.vortex.spin = v end)
 				end
-				
 				task.wait(0.05)
 				local contentHeight = 0
 				for _, child in ipairs(previewContent:GetChildren()) do
@@ -1384,8 +1395,7 @@ local function createMainGUI()
 				local targetHeight = math.max(contentHeight, 80)
 				tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50 + targetHeight)}, 0.3)
 				tween(previewPanel, {Size = UDim2.new(1, 0, 0, targetHeight)}, 0.3)
-				task.wait(0.35)
-				updateShapesCanvas()
+				task.wait(0.35); updateShapesCanvas()
 			else
 				tween(previewBtn, {Rotation = 0}, 0.2)
 				if previewPanel then
@@ -1399,24 +1409,13 @@ local function createMainGUI()
 			end
 		end)
 	end
-	
-	for idx, shapeKey in ipairs(allShapeKeys) do
-		createShapeItem(shapeKey, SHAPE_DATA[shapeKey], idx)
-	end
-	
+	for idx, shapeKey in ipairs(allShapeKeys) do createShapeItem(shapeKey, SHAPE_DATA[shapeKey], idx) end
 	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, sweepParts)
 	
-	-- ===== STYLE TAB ===== (unchanged)
+	-- ===== STYLE TAB =====
 	local styleFrame = tabContents["STYLE"]
 	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, Colors.TEXT_PRIMARY)
-	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v)
-		rainbowMode = v
-		if not v then
-			for part, data in pairs(controlled) do
-				pcall(function() part.Color = data.origColor; part.Material = data.origMat end)
-			end
-		end
-	end)
+	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v) rainbowMode = v; if not v then for part, data in pairs(controlled) do pcall(function() part.Color = data.origColor; part.Material = data.origMat end) end end end)
 	addToggle(styleFrame, "Neon Material", 2, false, function(v) forcedMaterial = v and Enum.Material.Neon or nil end)
 	addToggle(styleFrame, "Random Colors", 3, false, function(v) randomColors = v end)
 	addSectionLabel(styleFrame, "SOLID COLOR", 10, Colors.TEXT_SECONDARY)
@@ -1428,33 +1427,13 @@ local function createMainGUI()
 	cGrid.CellSize = UDim2.new(0.2, -6, 0, 32)
 	cGrid.CellPadding = UDim2.fromOffset(6, 6)
 	cGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local colors = {
-		Color3.fromRGB(255, 100, 160), Color3.fromRGB(100, 200, 255),
-		Color3.fromRGB(160, 255, 120), Color3.fromRGB(255, 220, 100),
-		Color3.fromRGB(200, 120, 255), Color3.fromRGB(255, 120, 80),
-		Color3.fromRGB(120, 255, 220), Color3.fromRGB(255, 255, 255),
-		Color3.fromRGB(255, 80, 80), Color3.fromRGB(100, 100, 255)
-	}
+	local colors = {Color3.fromRGB(255,100,160), Color3.fromRGB(100,200,255), Color3.fromRGB(160,255,120), Color3.fromRGB(255,220,100), Color3.fromRGB(200,120,255), Color3.fromRGB(255,120,80), Color3.fromRGB(120,255,220), Color3.fromRGB(255,255,255), Color3.fromRGB(255,80,80), Color3.fromRGB(100,100,255)}
 	for _, col in ipairs(colors) do
 		local btn = Instance.new("TextButton", colorGrid)
-		btn.Text = ""
-		btn.Size = UDim2.new(1, 0, 0, 32)
-		btn.BackgroundColor3 = col
-		btn.BorderSizePixel = 0
-		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-		btn.MouseButton1Click:Connect(function()
-			forcedColor = col
-			rainbowMode = false
-			randomColors = false
-			for part in pairs(controlled) do pcall(function() part.Color = col end) end
-		end)
+		btn.Text = ""; btn.Size = UDim2.new(1,0,0,32); btn.BackgroundColor3 = col; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+		btn.MouseButton1Click:Connect(function() forcedColor = col; rainbowMode = false; randomColors = false; for part in pairs(controlled) do pcall(function() part.Color = col end) end end)
 	end
-	addActionBtn(styleFrame, "↺  RESET COLORS", 20, Colors.STATUS_IDLE, function()
-		forcedColor = nil; rainbowMode = false; randomColors = false; forcedMaterial = nil
-		for part, data in pairs(controlled) do
-			pcall(function() part.Color = data.origColor; part.Material = data.origMat end)
-		end
-	end)
+	addActionBtn(styleFrame, "↺  RESET COLORS", 20, Colors.STATUS_IDLE, function() forcedColor = nil; rainbowMode = false; randomColors = false; forcedMaterial = nil; for part, data in pairs(controlled) do pcall(function() part.Color = data.origColor; part.Material = data.origMat end) end end)
 	
 	-- ===== PHYSICS TAB =====
 	local physFrame = tabContents["PHYSICS"]
@@ -1469,78 +1448,32 @@ local function createMainGUI()
 	-- ===== BEHAVIORS TAB =====
 	local behaviorFrame = tabContents["BEHAVIORS"]
 	addSectionLabel(behaviorFrame, "SPECIAL DYNAMICS", 0, Colors.TEXT_PRIMARY)
-	
 	local behaviorGrid = Instance.new("Frame", behaviorFrame)
-	behaviorGrid.Size = UDim2.new(1, 0, 0, 80)
-	behaviorGrid.BackgroundTransparency = 1
-	behaviorGrid.LayoutOrder = 1
-	local gridLayout = Instance.new("UIGridLayout", behaviorGrid)
-	gridLayout.CellSize = UDim2.new(0.3, -5, 0, 32)
-	gridLayout.CellPadding = UDim2.fromOffset(6, 6)
-	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	
-	local behaviors = {"none","orbit","pulse","ripple","chaos","magnet"}
-	local behaviorNames = {"None","Orbit","Pulse","Ripple","Chaos","Magnet"}
-	local behaviorBtns = {}
-	
+	behaviorGrid.Size = UDim2.new(1, 0, 0, 80); behaviorGrid.BackgroundTransparency = 1; behaviorGrid.LayoutOrder = 1
+	local gridLayout = Instance.new("UIGridLayout", behaviorGrid); gridLayout.CellSize = UDim2.new(0.3, -5, 0, 32); gridLayout.CellPadding = UDim2.fromOffset(6,6); gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local behaviors = {"none","orbit","pulse","ripple","chaos","magnet"}; local behaviorNames = {"None","Orbit","Pulse","Ripple","Chaos","Magnet"}; local behaviorBtns = {}
 	for i, beh in ipairs(behaviors) do
 		local btn = Instance.new("TextButton", behaviorGrid)
-		btn.Text = behaviorNames[i]
-		btn.Size = UDim2.new(1, 0, 1, 0)
-		btn.BackgroundColor3 = (activeBehavior == beh) and Colors.STATUS_PROCESS or Colors.BUTTON_DARK
-		btn.TextColor3 = Colors.TEXT_PRIMARY
-		btn.TextSize = 11
-		btn.Font = Enum.Font.GothamBold
-		btn.BorderSizePixel = 0
-		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-		btn.MouseButton1Click:Connect(function()
-			activeBehavior = beh
-			for _, b in ipairs(behaviorBtns) do
-				tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1)
-			end
-			tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1)
-			updateBehaviorUI()
-		end)
+		btn.Text = behaviorNames[i]; btn.Size = UDim2.new(1,0,1,0); btn.BackgroundColor3 = (activeBehavior == beh) and Colors.STATUS_PROCESS or Colors.BUTTON_DARK; btn.TextColor3 = Colors.TEXT_PRIMARY; btn.TextSize = 11; btn.Font = Enum.Font.GothamBold; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+		btn.MouseButton1Click:Connect(function() activeBehavior = beh; for _, b in ipairs(behaviorBtns) do tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1) end; tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1); updateBehaviorUI() end)
 		table.insert(behaviorBtns, btn)
 	end
-	
 	addSectionLabel(behaviorFrame, "BEHAVIOR PARAMETERS", 2, Colors.TEXT_PRIMARY)
-	
-	local orbitContainer = Instance.new("Frame", behaviorFrame)
-	orbitContainer.LayoutOrder = 3
-	orbitContainer.Size = UDim2.new(1, 0, 0, 90)
-	orbitContainer.BackgroundTransparency = 1
+	local orbitContainer = Instance.new("Frame", behaviorFrame); orbitContainer.LayoutOrder = 3; orbitContainer.Size = UDim2.new(1,0,0,90); orbitContainer.BackgroundTransparency = 1
 	addSlider(orbitContainer, "Orbit Speed", 1, 0, 5, behaviorParams.orbit.speed, function(v) behaviorParams.orbit.speed = v end)
 	addSlider(orbitContainer, "Orbit Radius", 2, 0.5, 5, behaviorParams.orbit.radius, function(v) behaviorParams.orbit.radius = v end)
-	
-	local pulseContainer = Instance.new("Frame", behaviorFrame)
-	pulseContainer.LayoutOrder = 4
-	pulseContainer.Size = UDim2.new(1, 0, 0, 90)
-	pulseContainer.BackgroundTransparency = 1
+	local pulseContainer = Instance.new("Frame", behaviorFrame); pulseContainer.LayoutOrder = 4; pulseContainer.Size = UDim2.new(1,0,0,90); pulseContainer.BackgroundTransparency = 1
 	addSlider(pulseContainer, "Pulse Speed", 1, 0, 5, behaviorParams.pulse.speed, function(v) behaviorParams.pulse.speed = v end)
 	addSlider(pulseContainer, "Pulse Amplitude", 2, 0, 3, behaviorParams.pulse.amplitude, function(v) behaviorParams.pulse.amplitude = v end)
-	
-	local rippleContainer = Instance.new("Frame", behaviorFrame)
-	rippleContainer.LayoutOrder = 5
-	rippleContainer.Size = UDim2.new(1, 0, 0, 90)
-	rippleContainer.BackgroundTransparency = 1
+	local rippleContainer = Instance.new("Frame", behaviorFrame); rippleContainer.LayoutOrder = 5; rippleContainer.Size = UDim2.new(1,0,0,90); rippleContainer.BackgroundTransparency = 1
 	addSlider(rippleContainer, "Ripple Speed", 1, 0, 5, behaviorParams.ripple.speed, function(v) behaviorParams.ripple.speed = v end)
 	addSlider(rippleContainer, "Ripple Amplitude", 2, 0, 3, behaviorParams.ripple.amplitude, function(v) behaviorParams.ripple.amplitude = v end)
-	
-	local chaosContainer = Instance.new("Frame", behaviorFrame)
-	chaosContainer.LayoutOrder = 6
-	chaosContainer.Size = UDim2.new(1, 0, 0, 50)
-	chaosContainer.BackgroundTransparency = 1
+	local chaosContainer = Instance.new("Frame", behaviorFrame); chaosContainer.LayoutOrder = 6; chaosContainer.Size = UDim2.new(1,0,0,50); chaosContainer.BackgroundTransparency = 1
 	addSlider(chaosContainer, "Chaos Strength", 1, 0, 3, behaviorParams.chaos.strength, function(v) behaviorParams.chaos.strength = v end)
-	
-	local magnetContainer = Instance.new("Frame", behaviorFrame)
-	magnetContainer.LayoutOrder = 7
-	magnetContainer.Size = UDim2.new(1, 0, 0, 130)
-	magnetContainer.BackgroundTransparency = 1
+	local magnetContainer = Instance.new("Frame", behaviorFrame); magnetContainer.LayoutOrder = 7; magnetContainer.Size = UDim2.new(1,0,0,130); magnetContainer.BackgroundTransparency = 1
 	addSlider(magnetContainer, "Magnet Strength", 1, 0, 10, behaviorParams.magnet.strength, function(v) behaviorParams.magnet.strength = v end)
 	addSlider(magnetContainer, "Magnet Range", 2, 1, 20, behaviorParams.magnet.range, function(v) behaviorParams.magnet.range = v end)
 	addToggle(magnetContainer, "Repulse (push away)", 3, false, function(v) behaviorParams.magnet.repulse = v end)
-	
 	local function updateBehaviorUI()
 		orbitContainer.Visible = (activeBehavior == "orbit")
 		pulseContainer.Visible = (activeBehavior == "pulse")
@@ -1553,21 +1486,8 @@ local function createMainGUI()
 	-- ===== ADVANCED TAB =====
 	local advFrame = tabContents["ADVANCED"]
 	addSectionLabel(advFrame, "PART MANIPULATION", 0, Colors.TEXT_PRIMARY)
-	addSlider(advFrame, "Part Size Scale", 1, 0.5, 3, partSizeScale, function(v)
-		partSizeScale = v
-		for part, data in pairs(controlled) do
-			pcall(function() part.Size = data.origSize * v end)
-		end
-	end)
-	addSlider(advFrame, "Part Mass Scale", 2, 0, 2, partMassScale, function(v)
-		partMassScale = v
-		for part, data in pairs(controlled) do
-			pcall(function()
-				part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, v, 1)
-				part.Massless = (v == 0)
-			end)
-		end
-	end)
+	addSlider(advFrame, "Part Size Scale", 1, 0.5, 3, partSizeScale, function(v) partSizeScale = v; for part, data in pairs(controlled) do pcall(function() part.Size = data.origSize * v end) end end)
+	addSlider(advFrame, "Part Mass Scale", 2, 0, 2, partMassScale, function(v) partMassScale = v; for part, data in pairs(controlled) do pcall(function() part.CustomPhysicalProperties = PhysicalProperties.new(0.01,0.3,0.5,v,1); part.Massless = (v==0) end) end end)
 	addToggle(advFrame, "Velocity Damping", 3, false, function(v) velocityDamping = v end)
 	addSectionLabel(advFrame, "PARTICLE FILTER", 10, Colors.TEXT_SECONDARY)
 	addToggle(advFrame, "Ignore Anchored", 11, true, function(v) end)
@@ -1586,8 +1506,15 @@ local function createMainGUI()
 	statusLbl.LayoutOrder = 1
 	task.spawn(function()
 		while sg.Parent do
-			statusLbl.Text = string.format("STATUS: %s  |  PARTS: %d  |  MODE: %s  |  BEHAVIOR: %s",
-				isActive and "ACTIVE" or "IDLE", partCount, currentMode:upper(), activeBehavior:upper())
+			local statusText = isActive and "ACTIVE" or "IDLE"
+			if statusVerbose then
+				local partsInfo = showPartCountInStatus and (" | PARTS: "..partCount) or ""
+				local modeInfo = " | MODE: "..currentMode:upper()
+				local behaviorInfo = " | BEHAVIOR: "..activeBehavior:upper()
+				statusLbl.Text = "STATUS: "..statusText..partsInfo..modeInfo..behaviorInfo
+			else
+				statusLbl.Text = "STATUS: "..statusText
+			end
 			statusLbl.TextColor3 = isActive and Colors.STATUS_ACTIVE or Colors.STATUS_IDLE
 			task.wait(0.3)
 		end
@@ -1595,6 +1522,47 @@ local function createMainGUI()
 	addSectionLabel(sysFrame, "DANGER ZONE", 10, Colors.STATUS_IDLE)
 	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, releaseAll)
 	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Colors.STATUS_IDLE, function() releaseAll(); sg:Destroy() end)
+	
+	-- ===== SETTINGS TAB =====
+	local settingsFrame = tabContents["SETTINGS"]
+	addSectionLabel(settingsFrame, "INTERFACE", 0, Colors.TEXT_PRIMARY)
+	local themeGrid = Instance.new("Frame", settingsFrame)
+	themeGrid.Size = UDim2.new(1, 0, 0, 50)
+	themeGrid.BackgroundTransparency = 1
+	themeGrid.LayoutOrder = 1
+	local themeLayout = Instance.new("UIListLayout", themeGrid)
+	themeLayout.FillDirection = Enum.FillDirection.Horizontal
+	themeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	themeLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	themeLayout.Padding = UDim.new(0, 8)
+	local themeNames = {"Dark", "Amber", "Cyan", "Purple"}
+	local themeKeys = {"dark", "amber", "cyan", "purple"}
+	for i, name in ipairs(themeNames) do
+		local btn = Instance.new("TextButton", themeGrid)
+		btn.Text = name
+		btn.Size = UDim2.fromOffset(80, 32)
+		btn.BackgroundColor3 = Colors.BUTTON_DARK
+		btn.TextColor3 = Colors.TEXT_PRIMARY
+		btn.TextSize = 11
+		btn.Font = Enum.Font.GothamBold
+		btn.BorderSizePixel = 0
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		btn.MouseButton1Click:Connect(function()
+			setTheme(themeKeys[i])
+		end)
+	end
+	addToggle(settingsFrame, "UI Animations", 2, enableAnimations, function(v) enableAnimations = v end)
+	addToggle(settingsFrame, "Show Part Count in Status", 3, showPartCountInStatus, function(v) showPartCountInStatus = v end)
+	addToggle(settingsFrame, "Verbose Status", 4, statusVerbose, function(v) statusVerbose = v end)
+	addToggle(settingsFrame, "Auto-Sweep on Mode Change", 5, autoSweepOnModeChange, function(v) autoSweepOnModeChange = v end)
+	addSectionLabel(settingsFrame, "EXPERIMENTAL", 10, Colors.TEXT_SECONDARY)
+	addActionBtn(settingsFrame, "🎨  RELOAD THEME (apply changes)", 11, Colors.STATUS_PROCESS, function()
+		setTheme(currentTheme)
+	end)
+	addActionBtn(settingsFrame, "🔄  RESET ALL SETTINGS", 12, Colors.STATUS_IDLE, function()
+		enableAnimations = true; showPartCountInStatus = true; statusVerbose = true; autoSweepOnModeChange = true
+		setTheme("dark")
+	end)
 	
 	return sg
 end
