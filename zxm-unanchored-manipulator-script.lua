@@ -1,4 +1,4 @@
--- AETHER MANIPULATOR v2.8 (FIXED)
+-- AETHER MANIPULATOR v2.8 (FULLY FIXED)
 -- Redesigned shapes tab with 1 column, expandable previews, and customization sliders
 -- Natural physics only | No exploits
 -- Dark theme with monochrome colors
@@ -804,7 +804,7 @@ local function createMainGUI()
 	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
 	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
 	
-	-- Helper function to create interactive slider widget for preview panels
+	-- FIXED SLIDER FUNCTION (fully draggable)
 	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
 		local container = Instance.new("Frame", parent)
 		container.Size = UDim2.new(1, 0, 0, 45)
@@ -851,6 +851,7 @@ local function createMainGUI()
 		
 		local dragging = false
 		local connection = nil
+		local releaseConnection = nil
 		
 		local function updateSlider(val)
 			val = math.clamp(val, minVal, maxVal)
@@ -860,21 +861,9 @@ local function createMainGUI()
 			callback(val)
 		end
 		
-		handle.InputBegan:Connect(function(inp)
-			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		local function startDrag(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				dragging = true
-			end
-		end)
-		
-		local inputService = game:GetService("UserInputService")
-		inputService.InputEnded:Connect(function(inp)
-			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = false
-			end
-		end)
-		
-		sliderBG.InputBegan:Connect(function(inp)
-			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
 				local mouse = player:GetMouse()
 				local sliderPos = sliderBG.AbsolutePosition.X
 				local sliderSize = sliderBG.AbsoluteSize.X
@@ -882,9 +871,11 @@ local function createMainGUI()
 				local normalized = math.clamp((mousePos - sliderPos) / sliderSize, 0, 1)
 				local val = minVal + normalized * (maxVal - minVal)
 				updateSlider(val)
-				dragging = true
 			end
-		end)
+		end
+		
+		handle.InputBegan:Connect(startDrag)
+		sliderBG.InputBegan:Connect(startDrag)
 		
 		connection = RunService.RenderStepped:Connect(function()
 			if dragging then
@@ -898,13 +889,20 @@ local function createMainGUI()
 			end
 		end)
 		
-		updateSlider(defaultVal)
-		
-		-- Clean up connection when container is destroyed
-		container.AncestryChanged:Connect(function()
-			if not container.Parent then connection:Disconnect() end
+		releaseConnection = UserInputService.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
 		end)
 		
+		container.AncestryChanged:Connect(function()
+			if not container.Parent then
+				if connection then connection:Disconnect() end
+				if releaseConnection then releaseConnection:Disconnect() end
+			end
+		end)
+		
+		updateSlider(defaultVal)
 		return container
 	end
 	
