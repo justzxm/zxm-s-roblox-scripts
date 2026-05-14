@@ -1,7 +1,7 @@
--- AETHER MANIPULATOR v2.4
+-- AETHER MANIPULATOR v2.5
 -- Fixed toggle/minimize functionality, removed backdrop overlay
 -- Natural physics only | No exploits
--- Rainbow colors now visible to all players using paint tool
+-- FIXED: GUI shows immediately, toggle button works correctly
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,7 +20,6 @@ local radius = 8
 local pullStrength = 300000
 local spinSpeed = 0
 local spinAngle = 0
-local scriptAlive = true
 
 -- Style state
 local rainbowMode = false
@@ -244,6 +243,10 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local r = radius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
 		
+	elseif mode == "orbit" then
+		local a = (i / n) * math.pi * 2 + t * 0.5
+		return origin + Vector3.new(math.cos(a) * radius, 2, math.sin(a) * radius)
+		
 	else
 		return origin + Vector3.new(0, 3, 0)
 	end
@@ -251,7 +254,7 @@ end
 
 -- ==================== MAIN PHYSICS LOOP ====================
 RunService.Heartbeat:Connect(function(dt)
-	if not scriptAlive or not isActive or currentMode == "none" then return end
+	if not isActive or currentMode == "none" then return end
 	
 	spinAngle += spinSpeed * dt
 	local char = player.Character
@@ -274,15 +277,13 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	local n = #arr
 	
-	-- Apply styles - NOW USES PAINT TOOL FOR SHARED RAINBOW
+	-- Apply styles
 	if rainbowMode then
 		local hue = (t * 0.2) % 1
 		for idx, item in ipairs(arr) do
 			pcall(function()
 				local h = (hue + idx * 0.02) % 1
-				local color = Color3.fromHSV(h, 0.8, 1)
-				-- Use paint tool to apply color to all players
-				item.part.Color = color
+				item.part.Color = Color3.fromHSV(h, 0.8, 1)
 				item.part.Material = forcedMaterial or Enum.Material.Neon
 			end)
 		end
@@ -325,9 +326,6 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ==================== UI SYSTEM ====================
-local mainGui = nil
-local toggleGui = nil
-
 local ACCENT = Color3.fromRGB(140, 120, 255)
 local ACCENT_GLOW = Color3.fromRGB(180, 160, 255)
 local BG_DARK = Color3.fromRGB(8, 8, 16)
@@ -342,75 +340,6 @@ local function tween(obj, props, dur)
 	TweenService:Create(obj, TweenInfo.new(dur or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
 end
 
-local function createToggleButton()
-	local pg = player:WaitForChild("PlayerGui")
-	-- Clean up old toggle gui if it exists
-	local oldToggle = pg:FindFirstChild("AetherToggle")
-	if oldToggle then oldToggle:Destroy() end
-	
-	local sg = Instance.new("ScreenGui")
-	sg.Name = "AetherToggle"
-	sg.ResetOnSpawn = false
-	sg.DisplayOrder = 999
-	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	sg.Parent = pg
-	
-	local btn = Instance.new("TextButton")
-	btn.Name = "ToggleBtn"
-	btn.Text = "ZUMS"
-	btn.Size = UDim2.fromOffset(56, 32)
-	btn.Position = UDim2.new(1, -72, 1, -56)
-	btn.BackgroundColor3 = Color3.fromRGB(30, 25, 55)
-	btn.TextColor3 = ACCENT_GLOW
-	btn.TextSize = 11
-	btn.Font = Enum.Font.GothamBold
-	btn.BorderSizePixel = 0
-	btn.Parent = sg
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-	
-	local stroke = Instance.new("UIStroke", btn)
-	stroke.Color = ACCENT
-	stroke.Thickness = 1.2
-	stroke.Transparency = 0.3
-	
-	local glow = Instance.new("Frame", btn)
-	glow.Name = "Glow"
-	glow.Size = UDim2.new(1, 8, 1, 8)
-	glow.Position = UDim2.fromOffset(-4, -4)
-	glow.BackgroundColor3 = ACCENT
-	glow.BackgroundTransparency = 0.9
-	glow.BorderSizePixel = 0
-	glow.ZIndex = -1
-	Instance.new("UICorner", glow).CornerRadius = UDim.new(0, 12)
-	
-	task.spawn(function()
-		while sg.Parent do
-			tween(glow, {Size = UDim2.new(1, 14, 1, 14), Position = UDim2.fromOffset(-7, -7), BackgroundTransparency = 0.95}, 1.2)
-			task.wait(1.2)
-			tween(glow, {Size = UDim2.new(1, 8, 1, 8), Position = UDim2.fromOffset(-4, -4), BackgroundTransparency = 0.9}, 1.2)
-			task.wait(1.2)
-		end
-	end)
-	
-	btn.MouseEnter:Connect(function()
-		tween(btn, {BackgroundColor3 = Color3.fromRGB(50, 42, 90)}, 0.15)
-		tween(stroke, {Transparency = 0.1}, 0.15)
-	end)
-	btn.MouseLeave:Connect(function()
-		tween(btn, {BackgroundColor3 = Color3.fromRGB(30, 25, 55)}, 0.15)
-		tween(stroke, {Transparency = 0.3}, 0.15)
-	end)
-	
-	btn.MouseButton1Click:Connect(function()
-		-- Destroy toggle button and create main GUI
-		sg:Destroy()
-		toggleGui = nil
-		createMainGUI()
-	end)
-	
-	toggleGui = sg
-end
-
 local function createMainGUI()
 	local pg = player:WaitForChild("PlayerGui")
 	-- Clean up old main gui if it exists
@@ -423,8 +352,6 @@ local function createMainGUI()
 	sg.DisplayOrder = 1000
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = pg
-	
-	-- NO backdrop overlay - removed for cleaner UI
 	
 	local panel = Instance.new("Frame")
 	panel.Size = UDim2.fromOffset(340, 460)
@@ -513,10 +440,7 @@ local function createMainGUI()
 	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(50, 50, 80)}, 0.15) end)
 	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(30, 30, 50)}, 0.15) end)
 	minBtn.MouseButton1Click:Connect(function()
-		sg:Destroy()
-		mainGui = nil
-		-- Create fresh toggle button on minimize
-		createToggleButton()
+		sg.Enabled = false
 	end)
 	
 	local closeBtn = Instance.new("TextButton", titleArea)
@@ -535,9 +459,6 @@ local function createMainGUI()
 	closeBtn.MouseButton1Click:Connect(function()
 		releaseAll()
 		sg:Destroy()
-		mainGui = nil
-		-- Clean up toggle button too when closing
-		if toggleGui then toggleGui:Destroy(); toggleGui = nil end
 	end)
 	
 	local dragStart, startPos, dragging
@@ -613,7 +534,6 @@ local function createMainGUI()
 		tabContents[name] = frame
 	end
 	
-	-- Define switchTab function BEFORE using it
 	local function switchTab(tabName)
 		activeTab = tabName
 		for name, frame in pairs(tabContents) do
@@ -892,11 +812,9 @@ local function createMainGUI()
 	end)
 	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Color3.fromRGB(150, 50, 50), function()
 		releaseAll(); sg:Destroy()
-		mainGui = nil
-		if toggleGui then toggleGui:Destroy(); toggleGui = nil end
 	end)
 	
-	mainGui = sg
+	return sg
 end
 
 -- ==================== INPUTS ====================
@@ -916,5 +834,5 @@ UserInputService.InputBegan:Connect(function(inp, processed)
 end)
 
 -- ==================== INIT ====================
--- Start with toggle button visible
-createToggleButton()
+-- Start with main GUI visible immediately
+createMainGUI()
