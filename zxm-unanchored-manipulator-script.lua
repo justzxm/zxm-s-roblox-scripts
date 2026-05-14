@@ -1,7 +1,8 @@
--- AETHER MANIPULATOR v3.1 (BEHAVIORS EDITION)
--- 30 shapes + 5 dynamic behaviors (Orbit, Pulse, Ripple, Chaos, Magnet)
+-- AETHER MANIPULATOR v3.2 (REFINED UI)
+-- 30 shapes + 5 dynamic behaviors
 -- Fully draggable sliders, expandable previews, advanced physics
 -- Natural physics only | No exploits
+-- Fixed tab cutoff, improved layout
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -552,7 +553,6 @@ local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 		local strength = behaviorParams.magnet.strength
 		local range = behaviorParams.magnet.range
 		local repulse = behaviorParams.magnet.repulse
-		-- This would require neighbor detection; for simplicity, we apply a global pull toward shape center
 		local center = targetPos
 		local toCenter = center - partPos
 		local dist = toCenter.Magnitude
@@ -652,7 +652,7 @@ RunService.Heartbeat:Connect(function(dt)
 			targetPos = pos + (CFrame.fromAxisAngle(Vector3.new(0, 1, 0), spinAngle + phase) * offset)
 		end
 		
-		-- APPLY BEHAVIOR (modifies targetPos based on current behavior)
+		-- APPLY BEHAVIOR
 		if activeBehavior ~= "none" then
 			targetPos = applyBehavior(targetPos, part.Position, idx, n, t, activeBehavior)
 		end
@@ -690,8 +690,8 @@ local function createMainGUI()
 	sg.Parent = pg
 	
 	local panel = Instance.new("Frame")
-	panel.Size = UDim2.fromOffset(380, 560) -- Increased height for Behaviors tab
-	panel.Position = UDim2.new(0.5, -190, 0.5, -280)
+	panel.Size = UDim2.fromOffset(420, 560) -- Wider for tabs
+	panel.Position = UDim2.new(0.5, -210, 0.5, -280)
 	panel.BackgroundColor3 = Colors.BG_DARK
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
@@ -729,7 +729,7 @@ local function createMainGUI()
 	titleIcon.ZIndex = 4
 	
 	local titleText = Instance.new("TextLabel", titleArea)
-	titleText.Text = "AETHER MANIPULATOR v3.1"
+	titleText.Text = "AETHER MANIPULATOR v3.2"
 	titleText.Size = UDim2.new(1, -90, 0, 20)
 	titleText.Position = UDim2.fromOffset(44, 8)
 	titleText.BackgroundTransparency = 1
@@ -796,25 +796,44 @@ local function createMainGUI()
 	end)
 	UserInputService.InputEnded:Connect(function() dragging = false end)
 	
-	local tabBar = Instance.new("Frame")
-	tabBar.Size = UDim2.new(1, -20, 0, 36)
-	tabBar.Position = UDim2.fromOffset(10, 54)
-	tabBar.BackgroundColor3 = Colors.BG_TAB
-	tabBar.BorderSizePixel = 0
-	tabBar.ZIndex = 3
-	tabBar.Parent = panel
-	Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0, 10)
+	-- Tab bar using a ScrollingFrame for horizontal scrolling (prevents cutoff)
+	local tabBarContainer = Instance.new("Frame")
+	tabBarContainer.Size = UDim2.new(1, -20, 0, 36)
+	tabBarContainer.Position = UDim2.fromOffset(10, 54)
+	tabBarContainer.BackgroundTransparency = 1
+	tabBarContainer.ZIndex = 3
+	tabBarContainer.Parent = panel
 	
-	local tabLayout = Instance.new("UIListLayout", tabBar)
-	tabLayout.FillDirection = Enum.FillDirection.Horizontal
-	tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	tabLayout.Padding = UDim.new(0, 4)
+	local tabScroller = Instance.new("ScrollingFrame")
+	tabScroller.Size = UDim2.new(1, 0, 1, 0)
+	tabScroller.BackgroundTransparency = 1
+	tabScroller.ScrollBarThickness = 4
+	tabScroller.ScrollBarImageColor3 = Colors.BORDER
+	tabScroller.CanvasSize = UDim2.new(0, 0, 0, 0)
+	tabScroller.HorizontalScrollBarInset = Enum.ScrollBarInset.None
+	tabScroller.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
+	tabScroller.BorderSizePixel = 0
+	tabScroller.Parent = tabBarContainer
+	
+	local tabsLayout = Instance.new("UIListLayout")
+	tabsLayout.FillDirection = Enum.FillDirection.Horizontal
+	tabsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	tabsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	tabsLayout.Padding = UDim.new(0, 4)
+	tabsLayout.Parent = tabScroller
 	
 	local tabs = {"SHAPES", "STYLE", "PHYSICS", "BEHAVIORS", "ADVANCED", "SYSTEM"}
 	local tabButtons = {}
 	local activeTab = "SHAPES"
 	local tabContents = {}
+	
+	-- Update canvas size when tabs change
+	local function updateTabCanvas()
+		tabScroller.CanvasSize = UDim2.new(0, tabsLayout.AbsoluteContentSize.X + 10, 0, 0)
+	end
+	tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvas)
+	task.wait(0.05)
+	updateTabCanvas()
 	
 	local contentFrame = Instance.new("Frame")
 	contentFrame.Size = UDim2.new(1, -20, 1, -100)
@@ -876,7 +895,7 @@ local function createMainGUI()
 		btn.Font = Enum.Font.GothamBold
 		btn.BorderSizePixel = 0
 		btn.ZIndex = 4
-		btn.Parent = tabBar
+		btn.Parent = tabScroller
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 		tabButtons[tabName] = btn
 		btn.MouseButton1Click:Connect(function() switchTab(tabName) end)
@@ -1057,7 +1076,7 @@ local function createMainGUI()
 	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
 	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
 	
-	-- Slider creation helper for preview panels (reused from previous version)
+	-- Slider creation helper for preview panels (compact version)
 	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
 		local container = Instance.new("Frame", parent)
 		container.Size = UDim2.new(1, 0, 0, 45)
@@ -1179,7 +1198,7 @@ local function createMainGUI()
 		return container
 	end
 	
-	-- Create shape items for all 30 shapes (same as before, omitted for brevity but fully functional)
+	-- Create shape items (same as before, compact)
 	local allShapeKeys = {"heart","wall","box","ring","sphere","spiral","star","diamond","cross","wave","helix","pyramid","grid","tornado","flower","cube","torus","cone","cylinder","mobius","icosa","galaxy","dna","crown","wave3d","hexagon","octagon","blossom","geodesic","vortex"}
 	
 	local function createShapeItem(shapeKey, shapeData, index)
@@ -1277,8 +1296,7 @@ local function createMainGUI()
 				descLabel.LayoutOrder = 0
 				
 				local custom = shapeCustomizations[shapeKey] or {}
-				-- (shape-specific sliders same as before, omitted for brevity but fully functional)
-				-- We'll keep the logic compact; it's the same as in v3.0
+				-- Inline sliders for brevity (same as v3.1)
 				if shapeKey == "wave" then
 					createPreviewSlider(previewContent, "Wavelength", 2, 20, custom.wavelength or 8, function(v) shapeCustomizations.wave.wavelength = v end)
 					createPreviewSlider(previewContent, "Amplitude", 1, 15, custom.amplitude or 5, function(v) shapeCustomizations.wave.amplitude = v end)
@@ -1388,7 +1406,7 @@ local function createMainGUI()
 	
 	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, sweepParts)
 	
-	-- ===== STYLE TAB =====
+	-- ===== STYLE TAB ===== (unchanged)
 	local styleFrame = tabContents["STYLE"]
 	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, Colors.TEXT_PRIMARY)
 	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v)
@@ -1448,11 +1466,10 @@ local function createMainGUI()
 	addToggle(physFrame, "Invert Y Axis", 11, false, function(v) invertY = v end)
 	addToggle(physFrame, "Attach to Camera", 12, false, function(v) attachToCamera = v end)
 	
-	-- ===== BEHAVIORS TAB (NEW) =====
+	-- ===== BEHAVIORS TAB =====
 	local behaviorFrame = tabContents["BEHAVIORS"]
 	addSectionLabel(behaviorFrame, "SPECIAL DYNAMICS", 0, Colors.TEXT_PRIMARY)
 	
-	-- Behavior selection (button grid)
 	local behaviorGrid = Instance.new("Frame", behaviorFrame)
 	behaviorGrid.Size = UDim2.new(1, 0, 0, 80)
 	behaviorGrid.BackgroundTransparency = 1
@@ -1482,14 +1499,13 @@ local function createMainGUI()
 				tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1)
 			end
 			tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1)
+			updateBehaviorUI()
 		end)
 		table.insert(behaviorBtns, btn)
 	end
 	
-	-- Behavior-specific sliders
 	addSectionLabel(behaviorFrame, "BEHAVIOR PARAMETERS", 2, Colors.TEXT_PRIMARY)
 	
-	-- Orbit params
 	local orbitContainer = Instance.new("Frame", behaviorFrame)
 	orbitContainer.LayoutOrder = 3
 	orbitContainer.Size = UDim2.new(1, 0, 0, 90)
@@ -1497,7 +1513,6 @@ local function createMainGUI()
 	addSlider(orbitContainer, "Orbit Speed", 1, 0, 5, behaviorParams.orbit.speed, function(v) behaviorParams.orbit.speed = v end)
 	addSlider(orbitContainer, "Orbit Radius", 2, 0.5, 5, behaviorParams.orbit.radius, function(v) behaviorParams.orbit.radius = v end)
 	
-	-- Pulse params
 	local pulseContainer = Instance.new("Frame", behaviorFrame)
 	pulseContainer.LayoutOrder = 4
 	pulseContainer.Size = UDim2.new(1, 0, 0, 90)
@@ -1505,7 +1520,6 @@ local function createMainGUI()
 	addSlider(pulseContainer, "Pulse Speed", 1, 0, 5, behaviorParams.pulse.speed, function(v) behaviorParams.pulse.speed = v end)
 	addSlider(pulseContainer, "Pulse Amplitude", 2, 0, 3, behaviorParams.pulse.amplitude, function(v) behaviorParams.pulse.amplitude = v end)
 	
-	-- Ripple params
 	local rippleContainer = Instance.new("Frame", behaviorFrame)
 	rippleContainer.LayoutOrder = 5
 	rippleContainer.Size = UDim2.new(1, 0, 0, 90)
@@ -1513,14 +1527,12 @@ local function createMainGUI()
 	addSlider(rippleContainer, "Ripple Speed", 1, 0, 5, behaviorParams.ripple.speed, function(v) behaviorParams.ripple.speed = v end)
 	addSlider(rippleContainer, "Ripple Amplitude", 2, 0, 3, behaviorParams.ripple.amplitude, function(v) behaviorParams.ripple.amplitude = v end)
 	
-	-- Chaos params
 	local chaosContainer = Instance.new("Frame", behaviorFrame)
 	chaosContainer.LayoutOrder = 6
 	chaosContainer.Size = UDim2.new(1, 0, 0, 50)
 	chaosContainer.BackgroundTransparency = 1
 	addSlider(chaosContainer, "Chaos Strength", 1, 0, 3, behaviorParams.chaos.strength, function(v) behaviorParams.chaos.strength = v end)
 	
-	-- Magnet params
 	local magnetContainer = Instance.new("Frame", behaviorFrame)
 	magnetContainer.LayoutOrder = 7
 	magnetContainer.Size = UDim2.new(1, 0, 0, 130)
@@ -1529,7 +1541,6 @@ local function createMainGUI()
 	addSlider(magnetContainer, "Magnet Range", 2, 1, 20, behaviorParams.magnet.range, function(v) behaviorParams.magnet.range = v end)
 	addToggle(magnetContainer, "Repulse (push away)", 3, false, function(v) behaviorParams.magnet.repulse = v end)
 	
-	-- Hide/show containers based on selected behavior
 	local function updateBehaviorUI()
 		orbitContainer.Visible = (activeBehavior == "orbit")
 		pulseContainer.Visible = (activeBehavior == "pulse")
@@ -1538,10 +1549,6 @@ local function createMainGUI()
 		magnetContainer.Visible = (activeBehavior == "magnet")
 	end
 	updateBehaviorUI()
-	-- Re-run whenever behavior changes (the button clicks already set activeBehavior, so we need to call this after)
-	for _, btn in ipairs(behaviorBtns) do
-		btn.MouseButton1Click:Connect(updateBehaviorUI)
-	end
 	
 	-- ===== ADVANCED TAB =====
 	local advFrame = tabContents["ADVANCED"]
