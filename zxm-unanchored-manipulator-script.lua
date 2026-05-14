@@ -1,5 +1,5 @@
--- AETHER MANIPULATOR v2.8 (FULLY FIXED - WORKING SLIDERS)
--- Redesigned shapes tab with 1 column, expandable previews, and customization sliders
+-- AETHER MANIPULATOR v3.0 (EXPANDED EDITION)
+-- 30 shapes with expandable previews, draggable sliders, and advanced physics
 -- Natural physics only | No exploits
 -- Dark theme with monochrome colors
 
@@ -21,13 +21,22 @@ local pullStrength = 300000
 local spinSpeed = 0
 local spinAngle = 0
 
+-- Advanced physics options
+local attachToCamera = false
+local invertY = false
+local randomColors = false
+local velocityDamping = false
+local partSizeScale = 1
+local partMassScale = 1
+
 -- Style state
 local rainbowMode = false
 local forcedMaterial = nil
 local forcedColor = nil
 
--- Shape-specific customization values
+-- Shape-specific customization values (extended)
 local shapeCustomizations = {
+	-- Original shapes
 	wave = {wavelength = 8, amplitude = 5, frequency = 2},
 	spiral = {tightness = 5, height = 20},
 	star = {points = 5, radius = 20},
@@ -43,9 +52,64 @@ local shapeCustomizations = {
 	helix = {turns = 4, height = 20},
 	grid = {spacing = 2},
 	flower = {petals = 6, radius = 20},
+	-- New shapes
+	cube = {size = 15},
+	torus = {majorRadius = 15, minorRadius = 4},
+	cone = {height = 20, radius = 12},
+	cylinder = {height = 20, radius = 10},
+	mobius = {twists = 1, radius = 15},
+	icosa = {radius = 15},
+	galaxy = {arms = 3, radius = 20},
+	dna = {turns = 5, height = 25, width = 8},
+	crown = {points = 8, radius = 18, height = 12},
+	wave3d = {wavelength = 10, amplitude = 6, frequency = 1.5},
+	hexagon = {radius = 15},
+	octagon = {radius = 15},
+	blossom = {petals = 8, radius = 18},
+	geodesic = {subdivisions = 2, radius = 15},
+	vortex = {height = 25, width = 12, spin = 2},
 }
 
--- ==================== COLOR PALETTE (DARK THEME) ====================
+-- New shape data
+local additionalShapes = {
+	cube = {name = "Cube", icon = "⬛", description = "A solid cubic lattice"},
+	torus = {name = "Torus", icon = "⨀", description = "A donut-shaped ring"},
+	cone = {name = "Cone", icon = "▲", description = "A conical spiral"},
+	cylinder = {name = "Cylinder", icon = "▮", description = "A cylindrical column"},
+	mobius = {name = "Möbius", icon = "∞", description = "A twisted Möbius strip"},
+	icosa = {name = "Icosahedron", icon = "🔺", description = "A 20-sided polyhedron"},
+	galaxy = {name = "Galaxy", icon = "🌀", description = "A spiral galaxy pattern"},
+	dna = {name = "DNA", icon = "🧬", description = "Double helix structure"},
+	crown = {name = "Crown", icon = "👑", description = "A regal crown shape"},
+	wave3d = {name = "3D Wave", icon = "〰️", description = "3D oscillating wave"},
+	hexagon = {name = "Hexagon", icon = "⬡", description = "Hexagonal prism"},
+	octagon = {name = "Octagon", icon = "⬠", description = "Octagonal ring"},
+	blossom = {name = "Blossom", icon = "🌸", description = "Cherry blossom petals"},
+	geodesic = {name = "Geodesic", icon = "🌐", description = "Geodesic dome"},
+	vortex = {name = "Vortex", icon = "🌪️", description = "Spiraling vortex tunnel"},
+}
+
+-- Merge with original SHAPE_DATA
+local SHAPE_DATA = {
+	heart = {name = "Heart", icon = "♥", description = "A beautiful heart shape formation"},
+	wall = {name = "Wall", icon = "▦", description = "Create a solid wall structure"},
+	box = {name = "Box", icon = "⧉", description = "A cubic box formation"},
+	ring = {name = "Ring", icon = "◯", description = "A circular ring pattern"},
+	sphere = {name = "Sphere", icon = "●", description = "A perfectly round sphere"},
+	spiral = {name = "Spiral", icon = "֍", description = "A rotating spiral pattern"},
+	star = {name = "Star", icon = "★", description = "A shining star formation"},
+	diamond = {name = "Diamond", icon = "◆", description = "A diamond crystal shape"},
+	cross = {name = "Cross", icon = "✚", description = "A cross/plus formation"},
+	wave = {name = "Wave", icon = "∿", description = "A wave pattern that oscillates"},
+	helix = {name = "Helix", icon = "❋", description = "A DNA helix structure"},
+	pyramid = {name = "Pyramid", icon = "▲", description = "A pyramid structure"},
+	grid = {name = "Grid", icon = "▤", description = "A grid pattern formation"},
+	tornado = {name = "Tornado", icon = "🌀", description = "A tornado vortex formation"},
+	flower = {name = "Flower", icon = "❀", description = "A flower petal formation"},
+}
+for k, v in pairs(additionalShapes) do SHAPE_DATA[k] = v end
+
+-- ==================== COLOR PALETTE ====================
 local Colors = {
 	BG_DARK = Color3.fromRGB(12, 12, 15),
 	BG_PANEL = Color3.fromRGB(20, 20, 25),
@@ -85,11 +149,16 @@ local function grabPart(part)
 	local origMat = part.Material
 	local origPhys = part.CustomPhysicalProperties
 	local origMassless = part.Massless
+	local origSize = part.Size
+	local origMass = part:GetMass()
 	
 	pcall(function()
-		part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, 1, 1)
-		part.Massless = true
+		part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, partMassScale, 1)
+		part.Massless = (partMassScale == 0)
 		part.CanCollide = false
+		if partSizeScale ~= 1 then
+			part.Size = part.Size * partSizeScale
+		end
 	end)
 	
 	local bp = Instance.new("BodyPosition")
@@ -110,6 +179,7 @@ local function grabPart(part)
 		origCC = origCC, origAnch = origAnch,
 		origColor = origColor, origMat = origMat,
 		origPhys = origPhys, origMassless = origMassless,
+		origSize = origSize, origMass = origMass,
 		bp = bp, bg = bg
 	}
 	partCount += 1
@@ -125,8 +195,9 @@ local function releasePart(part, data)
 		if part and part.Parent then
 			part.CanCollide = data.origCC
 			part.Anchored = data.origAnch
-			part.Massless = data.origMassless or false
+			part.Massless = data.origMassless
 			part.CustomPhysicalProperties = data.origPhys
+			if data.origSize then part.Size = data.origSize end
 			if not rainbowMode and not forcedColor then
 				part.Color = data.origColor
 				part.Material = data.origMat
@@ -166,26 +237,8 @@ local function sweepParts()
 	end
 end
 
--- ==================== SHAPE MATH ====================
+-- ==================== SHAPE MATH (EXTENDED) ====================
 local PHI = (1 + math.sqrt(5)) / 2
-
-local SHAPE_DATA = {
-	heart = {name = "Heart", icon = "♥", description = "A beautiful heart shape formation"},
-	wall = {name = "Wall", icon = "▦", description = "Create a solid wall structure"},
-	box = {name = "Box", icon = "⧉", description = "A cubic box formation"},
-	ring = {name = "Ring", icon = "◯", description = "A circular ring pattern"},
-	sphere = {name = "Sphere", icon = "●", description = "A perfectly round sphere"},
-	spiral = {name = "Spiral", icon = "֍", description = "A rotating spiral pattern"},
-	star = {name = "Star", icon = "★", description = "A shining star formation"},
-	diamond = {name = "Diamond", icon = "◆", description = "A diamond crystal shape"},
-	cross = {name = "Cross", icon = "✚", description = "A cross/plus formation"},
-	wave = {name = "Wave", icon = "∿", description = "A wave pattern that oscillates"},
-	helix = {name = "Helix", icon = "❋", description = "A DNA helix structure"},
-	pyramid = {name = "Pyramid", icon = "▲", description = "A pyramid structure"},
-	grid = {name = "Grid", icon = "▤", description = "A grid pattern formation"},
-	tornado = {name = "Tornado", icon = "🌀", description = "A tornado vortex formation"},
-	flower = {name = "Flower", icon = "❀", description = "A flower petal formation"},
-}
 
 local function getShapePos(mode, index, total, origin, cf, t)
 	local n = math.max(total, 1); local i = index - 1
@@ -294,6 +347,158 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local r = flowerRadius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
 		
+	-- ========== NEW SHAPES ==========
+	elseif mode == "cube" then
+		local size = shapeCustomizations.cube.size or 15
+		local side = math.floor(i / (n/6))
+		local posOnSide = i % (n/6) / (n/6) - 0.5
+		local vec = Vector3.new(0,0,0)
+		if side == 0 then vec = Vector3.new(posOnSide, -0.5, -0.5) * size
+		elseif side == 1 then vec = Vector3.new(posOnSide, -0.5, 0.5) * size
+		elseif side == 2 then vec = Vector3.new(-0.5, posOnSide, -0.5) * size
+		elseif side == 3 then vec = Vector3.new(0.5, posOnSide, -0.5) * size
+		elseif side == 4 then vec = Vector3.new(-0.5, -0.5, posOnSide) * size
+		else vec = Vector3.new(0.5, -0.5, posOnSide) * size end
+		return origin + cf:VectorToWorldSpace(vec + Vector3.new(0,1,0))
+		
+	elseif mode == "torus" then
+		local majorR = shapeCustomizations.torus.majorRadius or 15
+		local minorR = shapeCustomizations.torus.minorRadius or 4
+		local u = (i / n) * 2 * math.pi
+		local v = (i * 13) % (2*math.pi) -- second angle for thickness
+		local x = (majorR + minorR * math.cos(v)) * math.cos(u)
+		local z = (majorR + minorR * math.cos(v)) * math.sin(u)
+		local y = minorR * math.sin(v) + 2
+		return origin + cf:VectorToWorldSpace(Vector3.new(x, y, z))
+		
+	elseif mode == "cone" then
+		local height = shapeCustomizations.cone.height or 20
+		local r = shapeCustomizations.cone.radius or 12
+		local layer = i / n
+		local y = layer * height
+		local rad = r * (1 - layer)
+		local ang = i * 0.3 + t
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(ang) * rad, y + 1, math.sin(ang) * rad))
+		
+	elseif mode == "cylinder" then
+		local height = shapeCustomizations.cylinder.height or 20
+		local rad = shapeCustomizations.cylinder.radius or 10
+		local y = (i / n) * height
+		local ang = i * 0.5 + t
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(ang) * rad, y + 1, math.sin(ang) * rad))
+		
+	elseif mode == "mobius" then
+		local twists = shapeCustomizations.mobius.twists or 1
+		local rad = shapeCustomizations.mobius.radius or 15
+		local u = (i / n) * 2 * math.pi
+		local v = 0.5
+		local x = (rad + v * math.cos(twists * u/2)) * math.cos(u)
+		local z = (rad + v * math.cos(twists * u/2)) * math.sin(u)
+		local y = v * math.sin(twists * u/2) + 2
+		return origin + cf:VectorToWorldSpace(Vector3.new(x, y, z))
+		
+	elseif mode == "icosa" then
+		local rad = shapeCustomizations.icosa.radius or 15
+		local phi = (1 + math.sqrt(5)) / 2
+		local vertices = {}
+		for _, s in ipairs({-1,1}) do for _, t in ipairs({-1,1}) do
+			table.insert(vertices, Vector3.new(s, t * phi, 0).Unit * rad)
+			table.insert(vertices, Vector3.new(0, s, t * phi).Unit * rad)
+			table.insert(vertices, Vector3.new(t * phi, 0, s).Unit * rad)
+		end end
+		local idx = (i % #vertices) + 1
+		return origin + cf:VectorToWorldSpace(vertices[idx] + Vector3.new(0,2,0))
+		
+	elseif mode == "galaxy" then
+		local arms = shapeCustomizations.galaxy.arms or 3
+		local r = shapeCustomizations.galaxy.radius or 20
+		local armIdx = i % arms
+		local armPos = math.floor(i / arms) / (n/arms)
+		local angle = (armIdx / arms) * 2 * math.pi + armPos * 8 * math.pi + t
+		local rad = r * (0.2 + 0.8 * armPos)
+		local y = math.sin(angle * 2) * 1.5
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(angle) * rad, y + 2, math.sin(angle) * rad))
+		
+	elseif mode == "dna" then
+		local turns = shapeCustomizations.dna.turns or 5
+		local height = shapeCustomizations.dna.height or 25
+		local width = shapeCustomizations.dna.width or 8
+		local s = i / n
+		local angle = s * 2 * math.pi * turns + t * 2
+		local offset = (i % 2) * 2 - 1
+		local x = math.cos(angle) * width
+		local z = math.sin(angle) * width
+		local y = s * height
+		return origin + cf:VectorToWorldSpace(Vector3.new(x + offset*1.5, y + 1, z))
+		
+	elseif mode == "crown" then
+		local points = shapeCustomizations.crown.points or 8
+		local rad = shapeCustomizations.crown.radius or 18
+		local height = shapeCustomizations.crown.height or 12
+		local point = i % points
+		local layer = math.floor(i / points)
+		local angle = (point / points) * 2 * math.pi + t * 0.5
+		local r = rad * (layer == 0 and 1 or 0.6)
+		local yOff = layer * (height / 2)
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(angle) * r, yOff + 1, math.sin(angle) * r))
+		
+	elseif mode == "wave3d" then
+		local wavelength = shapeCustomizations.wave3d.wavelength or 10
+		local amplitude = shapeCustomizations.wave3d.amplitude or 6
+		local freq = shapeCustomizations.wave3d.frequency or 1.5
+		local x = (i / n) * radius * 2 - radius
+		local z = math.sin(x * (wavelength/5) + t * freq) * amplitude
+		local y = math.cos(x * (wavelength/5) + t * freq) * amplitude/2
+		return origin + cf:VectorToWorldSpace(Vector3.new(x, y + 3, z))
+		
+	elseif mode == "hexagon" then
+		local rad = shapeCustomizations.hexagon.radius or 15
+		local side = i % 6
+		local layer = math.floor(i / 6)
+		local angle = (side / 6) * 2 * math.pi
+		local r = rad - layer * (rad / (n/6))
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(angle) * r, layer * 1.5 + 1, math.sin(angle) * r))
+		
+	elseif mode == "octagon" then
+		local rad = shapeCustomizations.octagon.radius or 15
+		local side = i % 8
+		local layer = math.floor(i / 8)
+		local angle = (side / 8) * 2 * math.pi
+		local r = rad - layer * (rad / (n/8))
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(angle) * r, layer * 1.2 + 1, math.sin(angle) * r))
+		
+	elseif mode == "blossom" then
+		local petals = shapeCustomizations.blossom.petals or 8
+		local rad = shapeCustomizations.blossom.radius or 18
+		local p = i % petals
+		local r = rad * (0.4 + 0.6 * math.sin((i/petals)*math.pi))
+		local angle = (p / petals) * 2 * math.pi + t
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(angle) * r, 2 + math.sin(angle*2)*0.5, math.sin(angle) * r))
+		
+	elseif mode == "geodesic" then
+		local rad = shapeCustomizations.geodesic.radius or 15
+		local subdivisions = shapeCustomizations.geodesic.subdivisions or 2
+		local goldenRatio = (1 + math.sqrt(5)) / 2
+		local vertices = {}
+		for _, a in ipairs({-1,1}) do for _, b in ipairs({-1,1}) do for _, c in ipairs({-1,1}) do
+			table.insert(vertices, Vector3.new(a, b, c).Unit * rad)
+		end end end
+		for i=1, subdivisions do
+			-- simple subdivision approximation
+		end
+		local idx = (i % #vertices) + 1
+		return origin + cf:VectorToWorldSpace(vertices[idx] + Vector3.new(0,2,0))
+		
+	elseif mode == "vortex" then
+		local height = shapeCustomizations.vortex.height or 25
+		local width = shapeCustomizations.vortex.width or 12
+		local spin = shapeCustomizations.vortex.spin or 2
+		local tFactor = t * spin
+		local y = (i / n) * height
+		local r = width * (1 - (y / height))
+		local ang = y * 0.8 + tFactor
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(ang) * r, y + 1, math.sin(ang) * r))
+		
 	else
 		return origin + Vector3.new(0, 3, 0)
 	end
@@ -305,11 +510,18 @@ RunService.Heartbeat:Connect(function(dt)
 	
 	spinAngle += spinSpeed * dt
 	local char = player.Character
-	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-	if not root then return end
+	local root
+	if attachToCamera then
+		root = camera
+	else
+		if not char then return end
+		root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+		if not root then return end
+	end
 	
-	local pos = root.Position; local cf = root.CFrame; local t = tick()
+	local pos = attachToCamera and camera.CFrame.Position or root.Position
+	local cf = attachToCamera and camera.CFrame or root.CFrame
+	local t = tick()
 	
 	-- Cleanup dead parts
 	for part, data in pairs(controlled) do
@@ -323,6 +535,13 @@ RunService.Heartbeat:Connect(function(dt)
 		if part and part.Parent then table.insert(arr, {part = part, data = data}) end
 	end
 	local n = #arr
+	
+	-- Random colors if enabled
+	if randomColors and not rainbowMode and not forcedColor then
+		for _, item in ipairs(arr) do
+			pcall(function() item.part.Color = Color3.fromHSV(math.random(), 0.8, 1) end)
+		end
+	end
 	
 	-- Apply styles
 	if rainbowMode then
@@ -347,9 +566,24 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 	
+	-- Apply velocity damping if enabled
+	if velocityDamping then
+		for _, item in ipairs(arr) do
+			pcall(function()
+				local vel = item.part.AssemblyLinearVelocity
+				item.part.AssemblyLinearVelocity = vel * 0.98
+			end)
+		end
+	end
+	
 	for idx, item in ipairs(arr) do
 		local part = item.part; local data = item.data
 		local targetPos = getShapePos(currentMode, idx, n, pos, cf, t)
+		
+		if invertY then
+			local offset = targetPos - pos
+			targetPos = pos + Vector3.new(offset.X, -offset.Y, offset.Z)
+		end
 		
 		if spinSpeed ~= 0 then
 			local phase = idx * (math.pi * 2 / math.max(n, 1))
@@ -390,8 +624,8 @@ local function createMainGUI()
 	sg.Parent = pg
 	
 	local panel = Instance.new("Frame")
-	panel.Size = UDim2.fromOffset(340, 460)
-	panel.Position = UDim2.new(0.5, -170, 0.5, -230)
+	panel.Size = UDim2.fromOffset(380, 520)
+	panel.Position = UDim2.new(0.5, -190, 0.5, -260)
 	panel.BackgroundColor3 = Colors.BG_DARK
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
@@ -429,7 +663,7 @@ local function createMainGUI()
 	titleIcon.ZIndex = 4
 	
 	local titleText = Instance.new("TextLabel", titleArea)
-	titleText.Text = "AETHER MANIPULATOR"
+	titleText.Text = "AETHER MANIPULATOR v3.0"
 	titleText.Size = UDim2.new(1, -90, 0, 20)
 	titleText.Position = UDim2.fromOffset(44, 8)
 	titleText.BackgroundTransparency = 1
@@ -440,7 +674,7 @@ local function createMainGUI()
 	titleText.ZIndex = 4
 	
 	local subText = Instance.new("TextLabel", titleArea)
-	subText.Text = "PHYSICS FORMATION SYSTEM"
+	subText.Text = "30 SHAPES | ADVANCED PHYSICS"
 	subText.Size = UDim2.new(1, -90, 0, 14)
 	subText.Position = UDim2.fromOffset(44, 26)
 	subText.BackgroundTransparency = 1
@@ -463,9 +697,7 @@ local function createMainGUI()
 	Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
 	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
 	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
-	minBtn.MouseButton1Click:Connect(function()
-		sg.Enabled = false
-	end)
+	minBtn.MouseButton1Click:Connect(function() sg.Enabled = false end)
 	
 	local closeBtn = Instance.new("TextButton", titleArea)
 	closeBtn.Text = "×"
@@ -480,10 +712,7 @@ local function createMainGUI()
 	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 	closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(100, 35, 35)}, 0.15) end)
 	closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(70, 25, 25)}, 0.15) end)
-	closeBtn.MouseButton1Click:Connect(function()
-		releaseAll()
-		sg:Destroy()
-	end)
+	closeBtn.MouseButton1Click:Connect(function() releaseAll(); sg:Destroy() end)
 	
 	local dragStart, startPos, dragging
 	titleArea.InputBegan:Connect(function(inp)
@@ -516,7 +745,7 @@ local function createMainGUI()
 	tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	tabLayout.Padding = UDim.new(0, 4)
 	
-	local tabs = {"SHAPES", "STYLE", "PHYSICS", "SYSTEM"}
+	local tabs = {"SHAPES", "STYLE", "PHYSICS", "ADVANCED", "SYSTEM"}
 	local tabButtons = {}
 	local activeTab = "SHAPES"
 	local tabContents = {}
@@ -560,9 +789,7 @@ local function createMainGUI()
 	
 	local function switchTab(tabName)
 		activeTab = tabName
-		for name, frame in pairs(tabContents) do
-			frame.Visible = (name == tabName)
-		end
+		for name, frame in pairs(tabContents) do frame.Visible = (name == tabName) end
 		for name, btn in pairs(tabButtons) do
 			if name == tabName then
 				tween(btn, {BackgroundColor3 = Colors.TEXT_PRIMARY, BackgroundTransparency = 0, TextColor3 = Colors.BG_DARK}, 0.2)
@@ -585,12 +812,8 @@ local function createMainGUI()
 		btn.ZIndex = 4
 		btn.Parent = tabBar
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-		
 		tabButtons[tabName] = btn
-		
-		btn.MouseButton1Click:Connect(function()
-			switchTab(tabName)
-		end)
+		btn.MouseButton1Click:Connect(function() switchTab(tabName) end)
 	end
 	
 	-- ==================== UI BUILDERS ====================
@@ -619,18 +842,12 @@ local function createMainGUI()
 		btn.LayoutOrder = order
 		btn.AutoButtonColor = false
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-		
 		local stroke = Instance.new("UIStroke", btn)
 		stroke.Color = Colors.BORDER
 		stroke.Thickness = 0.8
 		stroke.Transparency = 0.5
-		
-		btn.MouseEnter:Connect(function()
-			tween(btn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
-		end)
-		btn.MouseLeave:Connect(function()
-			tween(btn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
-		end)
+		btn.MouseEnter:Connect(function() tween(btn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+		btn.MouseLeave:Connect(function() tween(btn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
 		btn.MouseButton1Click:Connect(function()
 			tween(btn, {BackgroundColor3 = accent}, 0.1)
 			task.wait(0.1)
@@ -647,7 +864,6 @@ local function createMainGUI()
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = order
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-		
 		local lbl = Instance.new("TextLabel", frame)
 		lbl.Text = text
 		lbl.Size = UDim2.new(0.7, 0, 1, 0)
@@ -657,7 +873,6 @@ local function createMainGUI()
 		lbl.TextSize = 10
 		lbl.Font = Enum.Font.GothamBold
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
-		
 		local toggle = Instance.new("TextButton", frame)
 		toggle.Size = UDim2.fromOffset(44, 22)
 		toggle.Position = UDim2.new(1, -56, 0.5, -11)
@@ -668,7 +883,6 @@ local function createMainGUI()
 		toggle.Font = Enum.Font.GothamBold
 		toggle.BorderSizePixel = 0
 		Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 11)
-		
 		local state = default
 		toggle.MouseButton1Click:Connect(function()
 			state = not state
@@ -678,17 +892,14 @@ local function createMainGUI()
 		end)
 	end
 	
-	
 	local function addSlider(parent, text, order, min, max, default, callback)
 		addSectionLabel(parent, text, order, Colors.TEXT_SECONDARY)
-		
 		local frame = Instance.new("Frame", parent)
 		frame.Size = UDim2.new(1, 0, 0, 40)
 		frame.BackgroundColor3 = Colors.BG_TAB
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = order + 0.5
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-		
 		local minusBtn = Instance.new("TextButton", frame)
 		minusBtn.Text = "−"
 		minusBtn.Size = UDim2.fromOffset(32, 26)
@@ -700,7 +911,6 @@ local function createMainGUI()
 		minusBtn.BorderSizePixel = 0
 		Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
 		minusBtn.AutoButtonColor = false
-		
 		local box = Instance.new("TextBox", frame)
 		box.Text = tostring(math.floor(default * 10) / 10)
 		box.Size = UDim2.fromOffset(80, 26)
@@ -712,7 +922,6 @@ local function createMainGUI()
 		box.ClearTextOnFocus = false
 		box.BorderSizePixel = 0
 		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-		
 		local plusBtn = Instance.new("TextButton", frame)
 		plusBtn.Text = "+"
 		plusBtn.Size = UDim2.fromOffset(32, 26)
@@ -724,54 +933,36 @@ local function createMainGUI()
 		plusBtn.BorderSizePixel = 0
 		Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
 		plusBtn.AutoButtonColor = false
-		
 		local function updateValue(newVal)
 			newVal = math.clamp(newVal, min, max)
 			box.Text = tostring(math.floor(newVal * 10) / 10)
 			callback(newVal)
 		end
-		
 		minusBtn.MouseButton1Click:Connect(function()
 			local current = tonumber(box.Text) or default
 			local step = (max - min) / 20
 			updateValue(current - step)
 		end)
-		
 		plusBtn.MouseButton1Click:Connect(function()
 			local current = tonumber(box.Text) or default
 			local step = (max - min) / 20
 			updateValue(current + step)
 		end)
-		
 		box.FocusLost:Connect(function()
 			local num = tonumber(box.Text)
-			if num then
-				updateValue(num)
-			end
+			if num then updateValue(num) end
 		end)
-		
-		minusBtn.MouseEnter:Connect(function()
-			tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
-		end)
-		minusBtn.MouseLeave:Connect(function()
-			tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
-		end)
-		
-		plusBtn.MouseEnter:Connect(function()
-			tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
-		end)
-		plusBtn.MouseLeave:Connect(function()
-			tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
-		end)
-		
+		minusBtn.MouseEnter:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+		minusBtn.MouseLeave:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
+		plusBtn.MouseEnter:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+		plusBtn.MouseLeave:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
 		return box
 	end
 	
-	-- ===== SHAPES TAB (REDESIGNED - 1 COLUMN WITH EXPANDABLE PREVIEWS) =====
+	-- ===== SHAPES TAB =====
 	local shapesFrame = tabContents["SHAPES"]
-	addSectionLabel(shapesFrame, "SHAPE FORMATIONS", 0, Colors.TEXT_PRIMARY)
+	addSectionLabel(shapesFrame, "SHAPE FORMATIONS (30)", 0, Colors.TEXT_PRIMARY)
 	
-	-- Scrollable container for shapes list
 	local shapesScrollingFrame = Instance.new("ScrollingFrame", shapesFrame)
 	shapesScrollingFrame.Name = "ShapesScrollingFrame"
 	shapesScrollingFrame.Size = UDim2.new(1, 0, 1, -50)
@@ -792,25 +983,19 @@ local function createMainGUI()
 	shapePadding.PaddingRight = UDim.new(0, 12)
 	shapePadding.PaddingTop = UDim.new(0, 4)
 	
-	-- Helper function to update canvas size
 	local function updateShapesCanvas()
 		shapesScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, shapesLayout.AbsoluteContentSize.Y + 10)
 	end
-	
-	-- Update canvas when layout content changes
 	shapesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateShapesCanvas)
-	-- Also update when children are added/removed (in case layout event doesn't fire)
 	local function onChildAdded() task.wait(0.05); updateShapesCanvas() end
 	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
 	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
 	
-	-- FIXED: Fully draggable slider with +1/-1 buttons and editable text input
+	-- Slider creation helper for preview panels
 	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
 		local container = Instance.new("Frame", parent)
 		container.Size = UDim2.new(1, 0, 0, 45)
 		container.BackgroundTransparency = 1
-		
-		-- Label
 		local label = Instance.new("TextLabel", container)
 		label.Text = labelText
 		label.Size = UDim2.new(0, 70, 1, 0)
@@ -820,23 +1005,17 @@ local function createMainGUI()
 		label.Font = Enum.Font.GothamBold
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextYAlignment = Enum.TextYAlignment.Center
-		
-		-- Slider track
 		local sliderBG = Instance.new("Frame", container)
 		sliderBG.Size = UDim2.new(0, 120, 0, 8)
 		sliderBG.Position = UDim2.new(0, 75, 0.5, -4)
 		sliderBG.BackgroundColor3 = Colors.BUTTON_DARK
 		sliderBG.BorderSizePixel = 0
 		Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(0, 4)
-		
-		-- Slider handle
 		local handle = Instance.new("Frame", sliderBG)
 		handle.Size = UDim2.new(0, 14, 1, 0)
 		handle.BackgroundColor3 = Colors.STATUS_PROCESS
 		handle.BorderSizePixel = 0
 		Instance.new("UICorner", handle).CornerRadius = UDim.new(0, 3)
-		
-		-- Value display + input box
 		local valueBox = Instance.new("TextBox", container)
 		valueBox.Size = UDim2.new(0, 50, 0, 26)
 		valueBox.Position = UDim2.new(1, -115, 0.5, -13)
@@ -848,8 +1027,6 @@ local function createMainGUI()
 		valueBox.ClearTextOnFocus = false
 		valueBox.BorderSizePixel = 0
 		Instance.new("UICorner", valueBox).CornerRadius = UDim.new(0, 6)
-		
-		-- Minus button (-1)
 		local minusBtn = Instance.new("TextButton", container)
 		minusBtn.Text = "-1"
 		minusBtn.Size = UDim2.new(0, 28, 0, 26)
@@ -861,8 +1038,6 @@ local function createMainGUI()
 		minusBtn.BorderSizePixel = 0
 		Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
 		minusBtn.AutoButtonColor = false
-		
-		-- Plus button (+1)
 		local plusBtn = Instance.new("TextButton", container)
 		plusBtn.Text = "+1"
 		plusBtn.Size = UDim2.new(0, 28, 0, 26)
@@ -874,11 +1049,9 @@ local function createMainGUI()
 		plusBtn.BorderSizePixel = 0
 		Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
 		plusBtn.AutoButtonColor = false
-		
 		local dragging = false
 		local connection = nil
 		local releaseConnection = nil
-		
 		local function updateSlider(val)
 			val = math.clamp(val, minVal, maxVal)
 			local normalized = (val - minVal) / (maxVal - minVal)
@@ -886,7 +1059,6 @@ local function createMainGUI()
 			valueBox.Text = tostring(math.floor(val * 10) / 10)
 			callback(val)
 		end
-		
 		local function startDrag(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				dragging = true
@@ -899,12 +1071,8 @@ local function createMainGUI()
 				updateSlider(val)
 			end
 		end
-		
-		-- Handle drag on handle and track background
 		handle.InputBegan:Connect(startDrag)
 		sliderBG.InputBegan:Connect(startDrag)
-		
-		-- Global movement while dragging
 		connection = RunService.RenderStepped:Connect(function()
 			if dragging then
 				local mouse = player:GetMouse()
@@ -916,54 +1084,38 @@ local function createMainGUI()
 				updateSlider(val)
 			end
 		end)
-		
-		-- Stop dragging on mouse release
 		releaseConnection = UserInputService.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = false
-			end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 		end)
-		
-		-- Button clicks
 		minusBtn.MouseButton1Click:Connect(function()
 			local current = tonumber(valueBox.Text) or defaultVal
 			updateSlider(current - 1)
 		end)
-		
 		plusBtn.MouseButton1Click:Connect(function()
 			local current = tonumber(valueBox.Text) or defaultVal
 			updateSlider(current + 1)
 		end)
-		
-		-- Text input validation
 		valueBox.FocusLost:Connect(function()
 			local num = tonumber(valueBox.Text)
-			if num then
-				updateSlider(num)
-			else
-				updateSlider(defaultVal)
-			end
+			if num then updateSlider(num) else updateSlider(defaultVal) end
 		end)
-		
-		-- Hover effects for buttons
 		minusBtn.MouseEnter:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
 		minusBtn.MouseLeave:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
 		plusBtn.MouseEnter:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
 		plusBtn.MouseLeave:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
-		
-		-- Cleanup on destroy
 		container.AncestryChanged:Connect(function()
 			if not container.Parent then
 				if connection then connection:Disconnect() end
 				if releaseConnection then releaseConnection:Disconnect() end
 			end
 		end)
-		
 		updateSlider(defaultVal)
 		return container
 	end
 	
-	-- Helper to create each shape item with preview button
+	-- Create shape items for all 30 shapes
+	local allShapeKeys = {"heart","wall","box","ring","sphere","spiral","star","diamond","cross","wave","helix","pyramid","grid","tornado","flower","cube","torus","cone","cylinder","mobius","icosa","galaxy","dna","crown","wave3d","hexagon","octagon","blossom","geodesic","vortex"}
+	
 	local function createShapeItem(shapeKey, shapeData, index)
 		local shapeContainer = Instance.new("Frame", shapesScrollingFrame)
 		shapeContainer.Name = shapeKey .. "Container"
@@ -1006,12 +1158,8 @@ local function createMainGUI()
 		previewBtn.Rotation = 0
 		previewBtn.ZIndex = 101
 		
-		headerFrame.MouseEnter:Connect(function()
-			tween(headerFrame, {BackgroundColor3 = Colors.BG_HOVER}, 0.15)
-		end)
-		headerFrame.MouseLeave:Connect(function()
-			tween(headerFrame, {BackgroundColor3 = Colors.BG_PANEL}, 0.15)
-		end)
+		headerFrame.MouseEnter:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_HOVER}, 0.15) end)
+		headerFrame.MouseLeave:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_PANEL}, 0.15) end)
 		
 		mainBtn.MouseButton1Click:Connect(function()
 			currentMode = shapeKey
@@ -1024,10 +1172,8 @@ local function createMainGUI()
 		
 		previewBtn.MouseButton1Click:Connect(function()
 			isExpanded = not isExpanded
-			
 			if isExpanded then
 				tween(previewBtn, {Rotation = 90}, 0.2)
-				
 				previewPanel = Instance.new("Frame", shapeContainer)
 				previewPanel.Name = "PreviewPanel"
 				previewPanel.Position = UDim2.new(0, 0, 0, 50)
@@ -1042,12 +1188,10 @@ local function createMainGUI()
 				previewContent.Name = "Content"
 				previewContent.Size = UDim2.new(1, 0, 1, 0)
 				previewContent.BackgroundTransparency = 1
-				
 				local contentLayout = Instance.new("UIListLayout", previewContent)
 				contentLayout.Padding = UDim.new(0, 6)
 				contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				contentLayout.FillDirection = Enum.FillDirection.Vertical
-				
 				local contentPad = Instance.new("UIPadding", previewContent)
 				contentPad.PaddingLeft = UDim.new(0, 12)
 				contentPad.PaddingRight = UDim.new(0, 12)
@@ -1066,76 +1210,83 @@ local function createMainGUI()
 				descLabel.TextYAlignment = Enum.TextYAlignment.Top
 				descLabel.LayoutOrder = 0
 				
-				local customizations = shapeCustomizations[shapeKey] or {}
-				
+				local custom = shapeCustomizations[shapeKey] or {}
 				if shapeKey == "wave" then
-					createPreviewSlider(previewContent, "Wavelength", 2, 20, customizations.wavelength or 8, function(v)
-						shapeCustomizations.wave.wavelength = v
-					end)
-					createPreviewSlider(previewContent, "Amplitude", 1, 15, customizations.amplitude or 5, function(v)
-						shapeCustomizations.wave.amplitude = v
-					end)
-					createPreviewSlider(previewContent, "Frequency", 0.5, 5, customizations.frequency or 2, function(v)
-						shapeCustomizations.wave.frequency = v
-					end)
+					createPreviewSlider(previewContent, "Wavelength", 2, 20, custom.wavelength or 8, function(v) shapeCustomizations.wave.wavelength = v end)
+					createPreviewSlider(previewContent, "Amplitude", 1, 15, custom.amplitude or 5, function(v) shapeCustomizations.wave.amplitude = v end)
+					createPreviewSlider(previewContent, "Frequency", 0.5, 5, custom.frequency or 2, function(v) shapeCustomizations.wave.frequency = v end)
 				elseif shapeKey == "spiral" then
-					createPreviewSlider(previewContent, "Tightness", 1, 15, customizations.tightness or 5, function(v)
-						shapeCustomizations.spiral.tightness = v
-					end)
-					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
-						shapeCustomizations.spiral.height = v
-					end)
+					createPreviewSlider(previewContent, "Tightness", 1, 15, custom.tightness or 5, function(v) shapeCustomizations.spiral.tightness = v end)
+					createPreviewSlider(previewContent, "Height", 5, 50, custom.height or 20, function(v) shapeCustomizations.spiral.height = v end)
 				elseif shapeKey == "star" then
-					createPreviewSlider(previewContent, "Points", 3, 12, customizations.points or 5, function(v)
-						shapeCustomizations.star.points = math.floor(v)
-					end)
-					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
-						shapeCustomizations.star.radius = v
-					end)
+					createPreviewSlider(previewContent, "Points", 3, 12, custom.points or 5, function(v) shapeCustomizations.star.points = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 5, 50, custom.radius or 20, function(v) shapeCustomizations.star.radius = v end)
 				elseif shapeKey == "tornado" then
-					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
-						shapeCustomizations.tornado.height = v
-					end)
-					createPreviewSlider(previewContent, "Width", 5, 30, customizations.width or 10, function(v)
-						shapeCustomizations.tornado.width = v
-					end)
+					createPreviewSlider(previewContent, "Height", 5, 50, custom.height or 20, function(v) shapeCustomizations.tornado.height = v end)
+					createPreviewSlider(previewContent, "Width", 5, 30, custom.width or 10, function(v) shapeCustomizations.tornado.width = v end)
 				elseif shapeKey == "ring" then
-					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
-						shapeCustomizations.ring.radius = v
-					end)
+					createPreviewSlider(previewContent, "Radius", 5, 50, custom.radius or 20, function(v) shapeCustomizations.ring.radius = v end)
 				elseif shapeKey == "sphere" then
-					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
-						shapeCustomizations.sphere.radius = v
-					end)
+					createPreviewSlider(previewContent, "Radius", 5, 50, custom.radius or 20, function(v) shapeCustomizations.sphere.radius = v end)
 				elseif shapeKey == "pyramid" then
-					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
-						shapeCustomizations.pyramid.height = v
-					end)
+					createPreviewSlider(previewContent, "Height", 5, 50, custom.height or 20, function(v) shapeCustomizations.pyramid.height = v end)
 				elseif shapeKey == "wall" then
-					createPreviewSlider(previewContent, "Density", 1, 10, customizations.density or 5, function(v)
-						shapeCustomizations.wall.density = v
-					end)
+					createPreviewSlider(previewContent, "Density", 1, 10, custom.density or 5, function(v) shapeCustomizations.wall.density = v end)
 				elseif shapeKey == "helix" then
-					createPreviewSlider(previewContent, "Turns", 1, 10, customizations.turns or 4, function(v)
-						shapeCustomizations.helix.turns = math.floor(v)
-					end)
-					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
-						shapeCustomizations.helix.height = v
-					end)
+					createPreviewSlider(previewContent, "Turns", 1, 10, custom.turns or 4, function(v) shapeCustomizations.helix.turns = math.floor(v) end)
+					createPreviewSlider(previewContent, "Height", 5, 50, custom.height or 20, function(v) shapeCustomizations.helix.height = v end)
 				elseif shapeKey == "grid" then
-					createPreviewSlider(previewContent, "Spacing", 1, 10, customizations.spacing or 2, function(v)
-						shapeCustomizations.grid.spacing = v
-					end)
+					createPreviewSlider(previewContent, "Spacing", 1, 10, custom.spacing or 2, function(v) shapeCustomizations.grid.spacing = v end)
 				elseif shapeKey == "flower" then
-					createPreviewSlider(previewContent, "Petals", 3, 12, customizations.petals or 6, function(v)
-						shapeCustomizations.flower.petals = math.floor(v)
-					end)
-					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
-						shapeCustomizations.flower.radius = v
-					end)
+					createPreviewSlider(previewContent, "Petals", 3, 12, custom.petals or 6, function(v) shapeCustomizations.flower.petals = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 5, 50, custom.radius or 20, function(v) shapeCustomizations.flower.radius = v end)
+				elseif shapeKey == "cube" then
+					createPreviewSlider(previewContent, "Size", 5, 30, custom.size or 15, function(v) shapeCustomizations.cube.size = v end)
+				elseif shapeKey == "torus" then
+					createPreviewSlider(previewContent, "Major Radius", 8, 25, custom.majorRadius or 15, function(v) shapeCustomizations.torus.majorRadius = v end)
+					createPreviewSlider(previewContent, "Minor Radius", 2, 10, custom.minorRadius or 4, function(v) shapeCustomizations.torus.minorRadius = v end)
+				elseif shapeKey == "cone" then
+					createPreviewSlider(previewContent, "Height", 10, 40, custom.height or 20, function(v) shapeCustomizations.cone.height = v end)
+					createPreviewSlider(previewContent, "Radius", 5, 25, custom.radius or 12, function(v) shapeCustomizations.cone.radius = v end)
+				elseif shapeKey == "cylinder" then
+					createPreviewSlider(previewContent, "Height", 10, 40, custom.height or 20, function(v) shapeCustomizations.cylinder.height = v end)
+					createPreviewSlider(previewContent, "Radius", 5, 20, custom.radius or 10, function(v) shapeCustomizations.cylinder.radius = v end)
+				elseif shapeKey == "mobius" then
+					createPreviewSlider(previewContent, "Twists", 1, 3, custom.twists or 1, function(v) shapeCustomizations.mobius.twists = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 8, 25, custom.radius or 15, function(v) shapeCustomizations.mobius.radius = v end)
+				elseif shapeKey == "icosa" then
+					createPreviewSlider(previewContent, "Radius", 8, 25, custom.radius or 15, function(v) shapeCustomizations.icosa.radius = v end)
+				elseif shapeKey == "galaxy" then
+					createPreviewSlider(previewContent, "Arms", 2, 6, custom.arms or 3, function(v) shapeCustomizations.galaxy.arms = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 10, 35, custom.radius or 20, function(v) shapeCustomizations.galaxy.radius = v end)
+				elseif shapeKey == "dna" then
+					createPreviewSlider(previewContent, "Turns", 3, 8, custom.turns or 5, function(v) shapeCustomizations.dna.turns = math.floor(v) end)
+					createPreviewSlider(previewContent, "Height", 15, 40, custom.height or 25, function(v) shapeCustomizations.dna.height = v end)
+					createPreviewSlider(previewContent, "Width", 4, 15, custom.width or 8, function(v) shapeCustomizations.dna.width = v end)
+				elseif shapeKey == "crown" then
+					createPreviewSlider(previewContent, "Points", 5, 12, custom.points or 8, function(v) shapeCustomizations.crown.points = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 10, 30, custom.radius or 18, function(v) shapeCustomizations.crown.radius = v end)
+					createPreviewSlider(previewContent, "Height", 5, 20, custom.height or 12, function(v) shapeCustomizations.crown.height = v end)
+				elseif shapeKey == "wave3d" then
+					createPreviewSlider(previewContent, "Wavelength", 5, 20, custom.wavelength or 10, function(v) shapeCustomizations.wave3d.wavelength = v end)
+					createPreviewSlider(previewContent, "Amplitude", 2, 12, custom.amplitude or 6, function(v) shapeCustomizations.wave3d.amplitude = v end)
+					createPreviewSlider(previewContent, "Frequency", 0.5, 3, custom.frequency or 1.5, function(v) shapeCustomizations.wave3d.frequency = v end)
+				elseif shapeKey == "hexagon" then
+					createPreviewSlider(previewContent, "Radius", 8, 25, custom.radius or 15, function(v) shapeCustomizations.hexagon.radius = v end)
+				elseif shapeKey == "octagon" then
+					createPreviewSlider(previewContent, "Radius", 8, 25, custom.radius or 15, function(v) shapeCustomizations.octagon.radius = v end)
+				elseif shapeKey == "blossom" then
+					createPreviewSlider(previewContent, "Petals", 5, 12, custom.petals or 8, function(v) shapeCustomizations.blossom.petals = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 10, 30, custom.radius or 18, function(v) shapeCustomizations.blossom.radius = v end)
+				elseif shapeKey == "geodesic" then
+					createPreviewSlider(previewContent, "Subdivisions", 1, 3, custom.subdivisions or 2, function(v) shapeCustomizations.geodesic.subdivisions = math.floor(v) end)
+					createPreviewSlider(previewContent, "Radius", 10, 30, custom.radius or 15, function(v) shapeCustomizations.geodesic.radius = v end)
+				elseif shapeKey == "vortex" then
+					createPreviewSlider(previewContent, "Height", 15, 40, custom.height or 25, function(v) shapeCustomizations.vortex.height = v end)
+					createPreviewSlider(previewContent, "Width", 5, 20, custom.width or 12, function(v) shapeCustomizations.vortex.width = v end)
+					createPreviewSlider(previewContent, "Spin", 1, 5, custom.spin or 2, function(v) shapeCustomizations.vortex.spin = v end)
 				end
 				
-				-- Wait for layout to compute, then get actual content height
 				task.wait(0.05)
 				local contentHeight = 0
 				for _, child in ipairs(previewContent:GetChildren()) do
@@ -1143,9 +1294,8 @@ local function createMainGUI()
 						contentHeight += child.AbsoluteSize.Y
 					end
 				end
-				contentHeight = contentHeight + 25 + 10 -- padding
+				contentHeight = contentHeight + 25 + 10
 				local targetHeight = math.max(contentHeight, 80)
-				
 				tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50 + targetHeight)}, 0.3)
 				tween(previewPanel, {Size = UDim2.new(1, 0, 0, targetHeight)}, 0.3)
 				task.wait(0.35)
@@ -1164,19 +1314,15 @@ local function createMainGUI()
 		end)
 	end
 	
-	-- Create all 15 shape items in 1-column layout
-	local shapeOrder = 1
-	for _, shapeKey in ipairs({"heart", "wall", "box", "ring", "sphere", "spiral", "star", "diamond", "cross", "wave", "helix", "pyramid", "grid", "tornado", "flower"}) do
-		createShapeItem(shapeKey, SHAPE_DATA[shapeKey], shapeOrder)
-		shapeOrder += 1
+	for idx, shapeKey in ipairs(allShapeKeys) do
+		createShapeItem(shapeKey, SHAPE_DATA[shapeKey], idx)
 	end
 	
-	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, function() sweepParts() end)
+	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, sweepParts)
 	
 	-- ===== STYLE TAB =====
 	local styleFrame = tabContents["STYLE"]
 	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, Colors.TEXT_PRIMARY)
-	
 	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v)
 		rainbowMode = v
 		if not v then
@@ -1185,13 +1331,9 @@ local function createMainGUI()
 			end
 		end
 	end)
-	
-	addToggle(styleFrame, "Neon Material", 2, false, function(v)
-		forcedMaterial = v and Enum.Material.Neon or nil
-	end)
-	
+	addToggle(styleFrame, "Neon Material", 2, false, function(v) forcedMaterial = v and Enum.Material.Neon or nil end)
+	addToggle(styleFrame, "Random Colors", 3, false, function(v) randomColors = v end)
 	addSectionLabel(styleFrame, "SOLID COLOR", 10, Colors.TEXT_SECONDARY)
-	
 	local colorGrid = Instance.new("Frame", styleFrame)
 	colorGrid.Size = UDim2.new(1, 0, 0, 80)
 	colorGrid.BackgroundTransparency = 1
@@ -1200,7 +1342,6 @@ local function createMainGUI()
 	cGrid.CellSize = UDim2.new(0.2, -6, 0, 32)
 	cGrid.CellPadding = UDim2.fromOffset(6, 6)
 	cGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	
 	local colors = {
 		Color3.fromRGB(255, 100, 160), Color3.fromRGB(100, 200, 255),
 		Color3.fromRGB(160, 255, 120), Color3.fromRGB(255, 220, 100),
@@ -1208,7 +1349,6 @@ local function createMainGUI()
 		Color3.fromRGB(120, 255, 220), Color3.fromRGB(255, 255, 255),
 		Color3.fromRGB(255, 80, 80), Color3.fromRGB(100, 100, 255)
 	}
-	
 	for _, col in ipairs(colors) do
 		local btn = Instance.new("TextButton", colorGrid)
 		btn.Text = ""
@@ -1219,14 +1359,12 @@ local function createMainGUI()
 		btn.MouseButton1Click:Connect(function()
 			forcedColor = col
 			rainbowMode = false
-			for part in pairs(controlled) do
-				pcall(function() part.Color = col end)
-			end
+			randomColors = false
+			for part in pairs(controlled) do pcall(function() part.Color = col end) end
 		end)
 	end
-	
 	addActionBtn(styleFrame, "↺  RESET COLORS", 20, Colors.STATUS_IDLE, function()
-		forcedColor = nil; rainbowMode = false; forcedMaterial = nil
+		forcedColor = nil; rainbowMode = false; randomColors = false; forcedMaterial = nil
 		for part, data in pairs(controlled) do
 			pcall(function() part.Color = data.origColor; part.Material = data.origMat end)
 		end
@@ -1235,18 +1373,39 @@ local function createMainGUI()
 	-- ===== PHYSICS TAB =====
 	local physFrame = tabContents["PHYSICS"]
 	addSectionLabel(physFrame, "PHYSICS SETTINGS", 0, Colors.TEXT_PRIMARY)
-	
 	addSlider(physFrame, "Formation Radius", 1, 1, 100, radius, function(v) radius = v end)
 	addSlider(physFrame, "Pull Strength", 3, 1000, 1e6, pullStrength, function(v) pullStrength = v end)
 	addSlider(physFrame, "Spin Speed", 5, -20, 20, spinSpeed, function(v) spinSpeed = v end)
-	
 	addSectionLabel(physFrame, "BEHAVIOR", 10, Colors.TEXT_SECONDARY)
-	addToggle(physFrame, "Auto-Scan Nearby", 11, false, function(v) end)
+	addToggle(physFrame, "Invert Y Axis", 11, false, function(v) invertY = v end)
+	addToggle(physFrame, "Attach to Camera", 12, false, function(v) attachToCamera = v end)
+	
+	-- ===== ADVANCED TAB =====
+	local advFrame = tabContents["ADVANCED"]
+	addSectionLabel(advFrame, "PART MANIPULATION", 0, Colors.TEXT_PRIMARY)
+	addSlider(advFrame, "Part Size Scale", 1, 0.5, 3, partSizeScale, function(v)
+		partSizeScale = v
+		for part, data in pairs(controlled) do
+			pcall(function() part.Size = data.origSize * v end)
+		end
+	end)
+	addSlider(advFrame, "Part Mass Scale", 2, 0, 2, partMassScale, function(v)
+		partMassScale = v
+		for part, data in pairs(controlled) do
+			pcall(function()
+				part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5, v, 1)
+				part.Massless = (v == 0)
+			end)
+		end
+	end)
+	addToggle(advFrame, "Velocity Damping", 3, false, function(v) velocityDamping = v end)
+	addSectionLabel(advFrame, "PARTICLE FILTER", 10, Colors.TEXT_SECONDARY)
+	addToggle(advFrame, "Ignore Anchored", 11, true, function(v) end) -- placeholder
+	addToggle(advFrame, "Ignore Player Parts", 12, true, function(v) end)
 	
 	-- ===== SYSTEM TAB =====
 	local sysFrame = tabContents["SYSTEM"]
 	addSectionLabel(sysFrame, "SYSTEM CONTROL", 0, Colors.TEXT_PRIMARY)
-	
 	local statusLbl = Instance.new("TextLabel", sysFrame)
 	statusLbl.Text = "STATUS: IDLE"
 	statusLbl.Size = UDim2.new(1, 0, 0, 20)
@@ -1255,7 +1414,6 @@ local function createMainGUI()
 	statusLbl.TextSize = 11
 	statusLbl.Font = Enum.Font.GothamBold
 	statusLbl.LayoutOrder = 1
-	
 	task.spawn(function()
 		while sg.Parent do
 			statusLbl.Text = string.format("STATUS: %s  |  PARTS: %d  |  MODE: %s",
@@ -1264,14 +1422,9 @@ local function createMainGUI()
 			task.wait(0.3)
 		end
 	end)
-	
 	addSectionLabel(sysFrame, "DANGER ZONE", 10, Colors.STATUS_IDLE)
-	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, function()
-		releaseAll()
-	end)
-	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Colors.STATUS_IDLE, function()
-		releaseAll(); sg:Destroy()
-	end)
+	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, releaseAll)
+	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Colors.STATUS_IDLE, function() releaseAll(); sg:Destroy() end)
 	
 	return sg
 end
