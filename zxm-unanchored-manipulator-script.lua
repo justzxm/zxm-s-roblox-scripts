@@ -1,7 +1,7 @@
--- AETHER MANIPULATOR v2.6
--- Fixed GUI with dark theme colors (black, white, grey)
+-- AETHER MANIPULATOR v2.7
+-- Redesigned shapes tab with 1 column, expandable previews, and customization sliders
 -- Natural physics only | No exploits
--- Orbit mode removed, color theme changed to monochrome
+-- Dark theme with monochrome colors
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -26,11 +26,31 @@ local rainbowMode = false
 local forcedMaterial = nil
 local forcedColor = nil
 
+-- Shape-specific customization values
+local shapeCustomizations = {
+	wave = {wavelength = 8, amplitude = 5, frequency = 2},
+	spiral = {tightness = 5, height = 20},
+	star = {points = 5, radius = 20},
+	tornado = {height = 20, width = 10},
+	ring = {radius = 20},
+	sphere = {radius = 20},
+	pyramid = {height = 20},
+	wall = {density = 5},
+	heart = {},
+	box = {},
+	diamond = {},
+	cross = {},
+	helix = {turns = 4, height = 20},
+	grid = {spacing = 2},
+	flower = {petals = 6, radius = 20},
+}
+
 -- ==================== COLOR PALETTE (DARK THEME) ====================
 local Colors = {
 	BG_DARK = Color3.fromRGB(12, 12, 15),
 	BG_PANEL = Color3.fromRGB(20, 20, 25),
 	BG_TAB = Color3.fromRGB(25, 25, 30),
+	BG_HOVER = Color3.fromRGB(35, 35, 45),
 	TEXT_PRIMARY = Color3.fromRGB(240, 240, 245),
 	TEXT_SECONDARY = Color3.fromRGB(150, 150, 160),
 	BORDER = Color3.fromRGB(50, 50, 60),
@@ -150,21 +170,21 @@ end
 local PHI = (1 + math.sqrt(5)) / 2
 
 local SHAPE_DATA = {
-	heart = {name = "Heart", icon = "♥"},
-	wall = {name = "Wall", icon = "▦"},
-	box = {name = "Box", icon = "⧉"},
-	ring = {name = "Ring", icon = "◯"},
-	sphere = {name = "Sphere", icon = "●"},
-	spiral = {name = "Spiral", icon = "֍"},
-	star = {name = "Star", icon = "★"},
-	diamond = {name = "Diamond", icon = "◆"},
-	cross = {name = "Cross", icon = "✚"},
-	wave = {name = "Wave", icon = "∿"},
-	helix = {name = "Helix", icon = "❋"},
-	pyramid = {name = "Pyramid", icon = "▲"},
-	grid = {name = "Grid", icon = "▤"},
-	tornado = {name = "Tornado", icon = "🌀"},
-	flower = {name = "Flower", icon = "❀"},
+	heart = {name = "Heart", icon = "♥", description = "A beautiful heart shape formation"},
+	wall = {name = "Wall", icon = "▦", description = "Create a solid wall structure"},
+	box = {name = "Box", icon = "⧉", description = "A cubic box formation"},
+	ring = {name = "Ring", icon = "◯", description = "A circular ring pattern"},
+	sphere = {name = "Sphere", icon = "●", description = "A perfectly round sphere"},
+	spiral = {name = "Spiral", icon = "֍", description = "A rotating spiral pattern"},
+	star = {name = "Star", icon = "★", description = "A shining star formation"},
+	diamond = {name = "Diamond", icon = "◆", description = "A diamond crystal shape"},
+	cross = {name = "Cross", icon = "✚", description = "A cross/plus formation"},
+	wave = {name = "Wave", icon = "∿", description = "A wave pattern that oscillates"},
+	helix = {name = "Helix", icon = "❋", description = "A DNA helix structure"},
+	pyramid = {name = "Pyramid", icon = "▲", description = "A pyramid structure"},
+	grid = {name = "Grid", icon = "▤", description = "A grid pattern formation"},
+	tornado = {name = "Tornado", icon = "🌀", description = "A tornado vortex formation"},
+	flower = {name = "Flower", icon = "❀", description = "A flower petal formation"},
 }
 
 local function getShapePos(mode, index, total, origin, cf, t)
@@ -177,7 +197,8 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		return origin + cf:VectorToWorldSpace(Vector3.new(hx * (radius/16), 1.5, hz * (radius/16)))
 		
 	elseif mode == "wall" then
-		local cols = math.max(1, math.ceil(math.sqrt(n)))
+		local density = shapeCustomizations.wall.density or 5
+		local cols = math.max(1, math.ceil(math.sqrt(n / density)))
 		local col = (i % cols) - math.floor(cols/2)
 		local row = math.floor(i / cols) - math.floor(cols/2)
 		return origin + cf:VectorToWorldSpace(Vector3.new(col * 2.2, row * 2.2 + 2, radius))
@@ -189,24 +210,29 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		return origin + faces[fi] * radius + ((fi % 2 == 1) and cf.RightVector or cf.LookVector) * (si % 2 - 0.5) * sp + cf.UpVector * (math.floor(si / 2) - 0.5) * sp
 		
 	elseif mode == "ring" then
+		local r = shapeCustomizations.ring.radius or radius
 		local a = (i / n) * math.pi * 2 + t * 1.5
-		return origin + Vector3.new(math.cos(a) * radius, 1.5 + math.sin(t + i*0.2)*0.5, math.sin(a) * radius)
+		return origin + Vector3.new(math.cos(a) * r, 1.5 + math.sin(t + i*0.2)*0.5, math.sin(a) * r)
 		
 	elseif mode == "sphere" then
+		local r = shapeCustomizations.sphere.radius or radius
 		local theta = math.acos(math.clamp(1 - 2 * (i + 0.5) / n, -1, 1))
 		local ang = 2 * math.pi * i / PHI + t * 0.5
-		local r = radius * (0.9 + math.sin(t * 1.2 + i * 0.1) * 0.1)
 		return origin + Vector3.new(r * math.sin(theta) * math.cos(ang), r * math.sin(theta) * math.sin(ang) + 2, r * math.cos(theta))
 		
 	elseif mode == "spiral" then
-		local h = (i / n) * 3 * math.pi * 2
+		local tightness = shapeCustomizations.spiral.tightness or 5
+		local height = shapeCustomizations.spiral.height or 20
+		local h = (i / n) * 3 * math.pi * 2 * (tightness / 5)
 		local r = radius * (0.2 + 0.8 * (i / n))
-		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(h + t*2) * r, (i/n)*radius*1.5 + 2, math.sin(h + t*2) * r))
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(h + t*2) * r, (i/n)*height + 2, math.sin(h + t*2) * r))
 		
 	elseif mode == "star" then
+		local points = shapeCustomizations.star.points or 5
+		local starRadius = shapeCustomizations.star.radius or radius
 		local step = math.floor(i / 2); local isOuter = (i % 2) == 0
-		local a = (step / math.max(n/2, 1)) * math.pi * 2 + t * 0.8
-		local r = isOuter and radius or radius * 0.4
+		local a = (step / math.max(points, 1)) * math.pi * 2 + t * 0.8
+		local r = isOuter and starRadius or starRadius * 0.4
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + (isOuter and 1 or 0), math.sin(a) * r))
 		
 	elseif mode == "diamond" then
@@ -222,40 +248,50 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		else return origin + cf:VectorToWorldSpace(Vector3.new(-dist, 2, radius)) end
 		
 	elseif mode == "wave" then
+		local wavelength = shapeCustomizations.wave.wavelength or 8
+		local amplitude = shapeCustomizations.wave.amplitude or 5
+		local frequency = shapeCustomizations.wave.frequency or 2
 		local x = (i / n) * radius * 3 - radius * 1.5
-		local z = math.sin(x * 0.8 + t * 3) * radius * 0.5
+		local z = math.sin(x * (wavelength/8) + t * frequency) * amplitude
 		return origin + cf:VectorToWorldSpace(Vector3.new(x, 2 + math.cos(t*2 + i*0.3)*1, radius + z))
 		
 	elseif mode == "helix" then
-		local a = (i / n) * math.pi * 4 + t * 2
-		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius * 0.6, ((i/n)-0.5)*radius*2 + 3, math.sin(a) * radius * 0.6))
+		local turns = shapeCustomizations.helix.turns or 4
+		local height = shapeCustomizations.helix.height or 20
+		local a = (i / n) * math.pi * turns + t * 2
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius * 0.6, ((i/n)-0.5)*height + 3, math.sin(a) * radius * 0.6))
 		
 	elseif mode == "pyramid" then
+		local height = shapeCustomizations.pyramid.height or 20
 		local layer = math.floor(math.sqrt(i))
 		local layerI = i - (layer * layer)
 		local layerN = (layer + 1)^2 - layer^2
 		local a = (layerI / math.max(layerN, 1)) * math.pi * 2
-		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius * (1 - layer/math.max(math.sqrt(n),1)), layer * 1.5 + 1, math.sin(a) * radius * (1 - layer/math.max(math.sqrt(n),1))))
+		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * radius * (1 - layer/math.max(math.sqrt(n),1)), layer * (height / math.max(math.sqrt(n),1)) + 1, math.sin(a) * radius * (1 - layer/math.max(math.sqrt(n),1))))
 		
 	elseif mode == "grid" then
+		local spacing = shapeCustomizations.grid.spacing or 2
 		local cols = math.max(1, math.ceil(math.sqrt(n)))
 		local col = (i % cols) - cols/2 + 0.5
 		local row = math.floor(i / cols) - cols/2 + 0.5
-		return origin + cf:VectorToWorldSpace(Vector3.new(col * 2, 2, row * 2 + radius))
+		return origin + cf:VectorToWorldSpace(Vector3.new(col * spacing, 2, row * spacing + radius))
 		
 	elseif mode == "tornado" then
+		local height = shapeCustomizations.tornado.height or 20
+		local width = shapeCustomizations.tornado.width or 10
 		local layer = math.floor(i / 8)
 		local ringIdx = i % 8
-		local layerR = (layer + 1) * 1.8
-		local layerY = 12 - layer * 2
+		local layerR = (layer + 1) * width / 5
+		local layerY = height - layer * (height / 5)
 		local ang = t * (6 - layer * 0.4) + ringIdx * (math.pi * 2 / 8)
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(ang) * layerR, layerY, math.sin(ang) * layerR))
 		
 	elseif mode == "flower" then
-		local petals = 6
+		local petals = shapeCustomizations.flower.petals or 6
+		local flowerRadius = shapeCustomizations.flower.radius or radius
 		local petal = i % petals; local dist = math.floor(i / petals) * 1.5
 		local a = (petal / petals) * math.pi * 2 + t * 0.5
-		local r = radius * 0.3 + dist
+		local r = flowerRadius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
 		
 	else
@@ -649,11 +685,11 @@ local function createMainGUI()
 		frame.Size = UDim2.new(1, 0, 0, 40)
 		frame.BackgroundColor3 = Colors.BG_TAB
 		frame.BorderSizePixel = 0
-		frame.LayoutOrder = order + 1
+		frame.LayoutOrder = order + 0.5
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 		
 		local box = Instance.new("TextBox", frame)
-		box.Text = tostring(default)
+		box.Text = tostring(math.floor(default * 10) / 10)
 		box.Size = UDim2.fromOffset(60, 26)
 		box.Position = UDim2.new(1, -68, 0.5, -13)
 		box.BackgroundColor3 = Colors.BUTTON_DARK
@@ -672,29 +708,271 @@ local function createMainGUI()
 				callback(num)
 			end
 		end)
+		
+		return box
 	end
 	
-	-- ===== SHAPES TAB =====
+	-- ===== SHAPES TAB (REDESIGNED) =====
 	local shapesFrame = tabContents["SHAPES"]
-	addSectionLabel(shapesFrame, "SELECT FORMATION", 0, Colors.TEXT_PRIMARY)
+	addSectionLabel(shapesFrame, "SELECT & CUSTOMIZE", 0, Colors.TEXT_PRIMARY)
 	
-	local shapesGrid = Instance.new("Frame", shapesFrame)
-	shapesGrid.Size = UDim2.new(1, 0, 0, 280)
-	shapesGrid.BackgroundTransparency = 1
-	shapesGrid.LayoutOrder = 1
-	local grid = Instance.new("UIGridLayout", shapesGrid)
-	grid.CellSize = UDim2.new(0.333, -6, 0, 42)
-	grid.CellPadding = UDim2.fromOffset(6, 6)
-	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local shapesListContainer = Instance.new("Frame", shapesFrame)
+	shapesListContainer.Name = "ShapesListContainer"
+	shapesListContainer.Size = UDim2.new(1, 0, 1, -25)
+	shapesListContainer.BackgroundTransparency = 1
+	shapesListContainer.LayoutOrder = 1
+	shapesListContainer.ClipsDescendants = true
 	
-	for key, data in pairs(SHAPE_DATA) do
-		addActionBtn(shapesGrid, data.icon.." "..data.name, 0, Colors.TEXT_PRIMARY, function()
-			currentMode = key; isActive = true; sweepParts()
+	local shapesLayout = Instance.new("UIListLayout", shapesListContainer)
+	shapesLayout.Padding = UDim.new(0, 5)
+	shapesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	
+	local shapePadding = Instance.new("UIPadding", shapesListContainer)
+	shapePadding.PaddingLeft = UDim.new(0, 8)
+	shapePadding.PaddingRight = UDim.new(0, 8)
+	shapePadding.PaddingTop = UDim.new(0, 4)
+	
+	-- Helper to create customization sliders for each shape
+	local function createShapeItem(shapeKey, shapeData, index)
+		local shapeContainer = Instance.new("Frame", shapesListContainer)
+		shapeContainer.Name = shapeKey .. "Container"
+		shapeContainer.Size = UDim2.new(1, 0, 0, 50)
+		shapeContainer.BackgroundColor3 = Colors.BUTTON_DARK
+		shapeContainer.BorderSizePixel = 0
+		shapeContainer.LayoutOrder = index
+		shapeContainer.ClipsDescendants = true
+		Instance.new("UICorner", shapeContainer).CornerRadius = UDim.new(0, 8)
+		
+		-- Main button area
+		local mainBtn = Instance.new("TextButton", shapeContainer)
+		mainBtn.Name = "MainButton"
+		mainBtn.Size = UDim2.new(1, -40, 1, 0)
+		mainBtn.BackgroundTransparency = 1
+		mainBtn.Text = shapeData.icon .. "  " .. shapeData.name
+		mainBtn.TextColor3 = Colors.TEXT_PRIMARY
+		mainBtn.TextSize = 13
+		mainBtn.Font = Enum.Font.GothamBold
+		mainBtn.TextXAlignment = Enum.TextXAlignment.Left
+		mainBtn.AutoButtonColor = false
+		
+		-- Preview/expand button (arrow)
+		local previewBtn = Instance.new("TextButton", shapeContainer)
+		previewBtn.Name = "PreviewButton"
+		previewBtn.AnchorPoint = Vector2.new(1, 0.5)
+		previewBtn.Position = UDim2.new(1, -8, 0.5, 0)
+		previewBtn.Size = UDim2.fromOffset(32, 32)
+		previewBtn.BackgroundColor3 = Colors.BUTTON_DARK
+		previewBtn.Text = "›"
+		previewBtn.TextColor3 = Colors.TEXT_SECONDARY
+		previewBtn.TextSize = 18
+		previewBtn.Font = Enum.Font.GothamBold
+		previewBtn.BorderSizePixel = 0
+		previewBtn.AutoButtonColor = false
+		Instance.new("UICorner", previewBtn).CornerRadius = UDim.new(0, 6)
+		
+		shapeContainer.MouseEnter:Connect(function()
+			tween(shapeContainer, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
+		end)
+		shapeContainer.MouseLeave:Connect(function()
+			tween(shapeContainer, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
+		end)
+		
+		previewBtn.MouseEnter:Connect(function()
+			tween(previewBtn, {BackgroundColor3 = Colors.BG_HOVER}, 0.15)
+		end)
+		previewBtn.MouseLeave:Connect(function()
+			tween(previewBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
+		end)
+		
+		-- Execute shape on main button click
+		mainBtn.MouseButton1Click:Connect(function()
+			currentMode = shapeKey
+			isActive = true
+			sweepParts()
+		end)
+		
+		-- Preview panel (hidden by default)
+		local isExpanded = false
+		local previewPanel = nil
+		
+		previewBtn.MouseButton1Click:Connect(function()
+			isExpanded = not isExpanded
+			
+			if isExpanded then
+				-- Rotate arrow
+				tween(previewBtn, {Rotation = 90}, 0.2)
+				
+				-- Create preview panel
+				previewPanel = Instance.new("Frame", shapeContainer)
+				previewPanel.Name = "PreviewPanel"
+				previewPanel.Position = UDim2.new(0, 0, 1, 0)
+				previewPanel.Size = UDim2.new(1, 0, 0, 0)
+				previewPanel.BackgroundColor3 = Colors.BG_TAB
+				previewPanel.BorderSizePixel = 0
+				previewPanel.ClipsDescendants = true
+				Instance.new("UICorner", previewPanel).CornerRadius = UDim.new(0, 8)
+				
+				local previewContent = Instance.new("Frame", previewPanel)
+				previewContent.Name = "Content"
+				previewContent.Size = UDim2.new(1, 0, 1, 0)
+				previewContent.BackgroundTransparency = 1
+				
+				local contentLayout = Instance.new("UIListLayout", previewContent)
+				contentLayout.Padding = UDim.new(0, 6)
+				contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				
+				local contentPad = Instance.new("UIPadding", previewContent)
+				contentPad.PaddingLeft = UDim.new(0, 10)
+				contentPad.PaddingRight = UDim.new(0, 10)
+				contentPad.PaddingTop = UDim.new(0, 8)
+				contentPad.PaddingBottom = UDim.new(0, 8)
+				
+				-- Description
+				local descLabel = Instance.new("TextLabel", previewContent)
+				descLabel.Text = shapeData.description
+				descLabel.Size = UDim2.new(1, 0, 0, 0)
+				descLabel.AutomaticSize = Enum.AutomaticSize.Y
+				descLabel.BackgroundTransparency = 1
+				descLabel.TextColor3 = Colors.TEXT_SECONDARY
+				descLabel.TextSize = 11
+				descLabel.Font = Enum.Font.Gotham
+				descLabel.TextWrapped = true
+				descLabel.TextXAlignment = Enum.TextXAlignment.Left
+				descLabel.LayoutOrder = 0
+				
+				-- Create customization sliders based on shape type
+				local sliderOrder = 1
+				local customizations = shapeCustomizations[shapeKey] or {}
+				
+				if shapeKey == "wave" then
+					sliderOrder += 1
+					local waveBox = addSlider(previewContent, "Wavelength", sliderOrder, 1, 20, customizations.wavelength or 8, function(v)
+						shapeCustomizations.wave.wavelength = v
+					end)
+					
+					sliderOrder += 2
+					local ampBox = addSlider(previewContent, "Amplitude", sliderOrder, 1, 20, customizations.amplitude or 5, function(v)
+						shapeCustomizations.wave.amplitude = v
+					end)
+					
+					sliderOrder += 2
+					local freqBox = addSlider(previewContent, "Frequency", sliderOrder, 0.5, 5, customizations.frequency or 2, function(v)
+						shapeCustomizations.wave.frequency = v
+					end)
+					
+				elseif shapeKey == "spiral" then
+					sliderOrder += 1
+					addSlider(previewContent, "Tightness", sliderOrder, 1, 10, customizations.tightness or 5, function(v)
+						shapeCustomizations.spiral.tightness = v
+					end)
+					
+					sliderOrder += 2
+					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+						shapeCustomizations.spiral.height = v
+					end)
+					
+				elseif shapeKey == "star" then
+					sliderOrder += 1
+					addSlider(previewContent, "Points", sliderOrder, 3, 12, customizations.points or 5, function(v)
+						shapeCustomizations.star.points = math.floor(v)
+					end)
+					
+					sliderOrder += 2
+					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+						shapeCustomizations.star.radius = v
+					end)
+					
+				elseif shapeKey == "tornado" then
+					sliderOrder += 1
+					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+						shapeCustomizations.tornado.height = v
+					end)
+					
+					sliderOrder += 2
+					addSlider(previewContent, "Width", sliderOrder, 5, 30, customizations.width or 10, function(v)
+						shapeCustomizations.tornado.width = v
+					end)
+					
+				elseif shapeKey == "ring" then
+					sliderOrder += 1
+					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+						shapeCustomizations.ring.radius = v
+					end)
+					
+				elseif shapeKey == "sphere" then
+					sliderOrder += 1
+					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+						shapeCustomizations.sphere.radius = v
+					end)
+					
+				elseif shapeKey == "pyramid" then
+					sliderOrder += 1
+					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+						shapeCustomizations.pyramid.height = v
+					end)
+					
+				elseif shapeKey == "wall" then
+					sliderOrder += 1
+					addSlider(previewContent, "Density", sliderOrder, 1, 10, customizations.density or 5, function(v)
+						shapeCustomizations.wall.density = v
+					end)
+					
+				elseif shapeKey == "helix" then
+					sliderOrder += 1
+					addSlider(previewContent, "Turns", sliderOrder, 1, 10, customizations.turns or 4, function(v)
+						shapeCustomizations.helix.turns = math.floor(v)
+					end)
+					
+					sliderOrder += 2
+					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+						shapeCustomizations.helix.height = v
+					end)
+					
+				elseif shapeKey == "grid" then
+					sliderOrder += 1
+					addSlider(previewContent, "Spacing", sliderOrder, 1, 10, customizations.spacing or 2, function(v)
+						shapeCustomizations.grid.spacing = v
+					end)
+					
+				elseif shapeKey == "flower" then
+					sliderOrder += 1
+					addSlider(previewContent, "Petals", sliderOrder, 3, 12, customizations.petals or 6, function(v)
+						shapeCustomizations.flower.petals = math.floor(v)
+					end)
+					
+					sliderOrder += 2
+					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+						shapeCustomizations.flower.radius = v
+					end)
+				end
+				
+				-- Animate expand
+				local targetHeight = 120 + (sliderOrder * 35)
+				tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50 + targetHeight)}, 0.3)
+				tween(previewPanel, {Size = UDim2.new(1, 0, 0, targetHeight)}, 0.3)
+				
+			else
+				-- Collapse
+				tween(previewBtn, {Rotation = 0}, 0.2)
+				if previewPanel then
+					tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50)}, 0.3)
+					tween(previewPanel, {Size = UDim2.new(1, 0, 0, 0)}, 0.3)
+					task.wait(0.3)
+					previewPanel:Destroy()
+					previewPanel = nil
+				end
+			end
 		end)
 	end
 	
-	addSectionLabel(shapesFrame, "QUICK ACTIONS", 10, Colors.TEXT_SECONDARY)
-	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 11, Colors.STATUS_ACTIVE, function() sweepParts() end)
+	-- Create all shape items
+	local shapeOrder = 1
+	for _, shapeKey in ipairs({"heart", "wall", "box", "ring", "sphere", "spiral", "star", "diamond", "cross", "wave", "helix", "pyramid", "grid", "tornado", "flower"}) do
+		createShapeItem(shapeKey, SHAPE_DATA[shapeKey], shapeOrder)
+		shapeOrder += 1
+	end
+	
+	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, function() sweepParts() end)
 	
 	-- ===== STYLE TAB =====
 	local styleFrame = tabContents["STYLE"]
