@@ -1,4 +1,4 @@
--- AETHER MANIPULATOR v2.8 (FULLY FIXED)
+-- AETHER MANIPULATOR v2.8 (FULLY FIXED - WORKING SLIDERS)
 -- Redesigned shapes tab with 1 column, expandable previews, and customization sliders
 -- Natural physics only | No exploits
 -- Dark theme with monochrome colors
@@ -804,16 +804,16 @@ local function createMainGUI()
 	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
 	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
 	
-	-- FIXED SLIDER FUNCTION (fully draggable)
+	-- FIXED: Fully draggable slider with +1/-1 buttons and editable text input
 	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
 		local container = Instance.new("Frame", parent)
 		container.Size = UDim2.new(1, 0, 0, 45)
 		container.BackgroundTransparency = 1
 		
+		-- Label
 		local label = Instance.new("TextLabel", container)
 		label.Text = labelText
-		label.Size = UDim2.new(0.4, -5, 0, 20)
-		label.Position = UDim2.new(0, 0, 0, 12)
+		label.Size = UDim2.new(0, 70, 1, 0)
 		label.BackgroundTransparency = 1
 		label.TextColor3 = Colors.TEXT_SECONDARY
 		label.TextSize = 11
@@ -821,33 +821,59 @@ local function createMainGUI()
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextYAlignment = Enum.TextYAlignment.Center
 		
+		-- Slider track
 		local sliderBG = Instance.new("Frame", container)
-		sliderBG.Name = "SliderBG"
-		sliderBG.Size = UDim2.new(0.45, -5, 0, 8)
-		sliderBG.Position = UDim2.new(0.4, 0, 0, 18)
+		sliderBG.Size = UDim2.new(0, 120, 0, 8)
+		sliderBG.Position = UDim2.new(0, 75, 0.5, -4)
 		sliderBG.BackgroundColor3 = Colors.BUTTON_DARK
 		sliderBG.BorderSizePixel = 0
 		Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(0, 4)
 		
+		-- Slider handle
 		local handle = Instance.new("Frame", sliderBG)
-		handle.Name = "Handle"
 		handle.Size = UDim2.new(0, 14, 1, 0)
 		handle.BackgroundColor3 = Colors.STATUS_PROCESS
 		handle.BorderSizePixel = 0
-		handle.ZIndex = 10
 		Instance.new("UICorner", handle).CornerRadius = UDim.new(0, 3)
 		
-		local valueLabel = Instance.new("TextLabel", container)
-		valueLabel.Text = tostring(math.floor(defaultVal * 10) / 10)
-		valueLabel.Size = UDim2.new(0.15, 0, 0, 20)
-		valueLabel.Position = UDim2.new(0.85, 0, 0, 12)
-		valueLabel.BackgroundColor3 = Colors.BUTTON_DARK
-		valueLabel.TextColor3 = Colors.TEXT_PRIMARY
-		valueLabel.TextSize = 10
-		valueLabel.Font = Enum.Font.GothamBold
-		valueLabel.BorderSizePixel = 0
-		valueLabel.TextYAlignment = Enum.TextYAlignment.Center
-		Instance.new("UICorner", valueLabel).CornerRadius = UDim.new(0, 4)
+		-- Value display + input box
+		local valueBox = Instance.new("TextBox", container)
+		valueBox.Size = UDim2.new(0, 50, 0, 26)
+		valueBox.Position = UDim2.new(1, -115, 0.5, -13)
+		valueBox.BackgroundColor3 = Colors.BUTTON_DARK
+		valueBox.TextColor3 = Colors.TEXT_PRIMARY
+		valueBox.TextSize = 11
+		valueBox.Font = Enum.Font.GothamBold
+		valueBox.Text = tostring(math.floor(defaultVal * 10) / 10)
+		valueBox.ClearTextOnFocus = false
+		valueBox.BorderSizePixel = 0
+		Instance.new("UICorner", valueBox).CornerRadius = UDim.new(0, 6)
+		
+		-- Minus button (-1)
+		local minusBtn = Instance.new("TextButton", container)
+		minusBtn.Text = "-1"
+		minusBtn.Size = UDim2.new(0, 28, 0, 26)
+		minusBtn.Position = UDim2.new(1, -60, 0.5, -13)
+		minusBtn.BackgroundColor3 = Colors.BUTTON_DARK
+		minusBtn.TextColor3 = Colors.TEXT_PRIMARY
+		minusBtn.TextSize = 11
+		minusBtn.Font = Enum.Font.GothamBold
+		minusBtn.BorderSizePixel = 0
+		Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
+		minusBtn.AutoButtonColor = false
+		
+		-- Plus button (+1)
+		local plusBtn = Instance.new("TextButton", container)
+		plusBtn.Text = "+1"
+		plusBtn.Size = UDim2.new(0, 28, 0, 26)
+		plusBtn.Position = UDim2.new(1, -28, 0.5, -13)
+		plusBtn.BackgroundColor3 = Colors.BUTTON_DARK
+		plusBtn.TextColor3 = Colors.TEXT_PRIMARY
+		plusBtn.TextSize = 11
+		plusBtn.Font = Enum.Font.GothamBold
+		plusBtn.BorderSizePixel = 0
+		Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
+		plusBtn.AutoButtonColor = false
 		
 		local dragging = false
 		local connection = nil
@@ -857,7 +883,7 @@ local function createMainGUI()
 			val = math.clamp(val, minVal, maxVal)
 			local normalized = (val - minVal) / (maxVal - minVal)
 			handle.Position = UDim2.new(normalized, -7, 0, -3)
-			valueLabel.Text = tostring(math.floor(val * 10) / 10)
+			valueBox.Text = tostring(math.floor(val * 10) / 10)
 			callback(val)
 		end
 		
@@ -874,9 +900,11 @@ local function createMainGUI()
 			end
 		end
 		
+		-- Handle drag on handle and track background
 		handle.InputBegan:Connect(startDrag)
 		sliderBG.InputBegan:Connect(startDrag)
 		
+		-- Global movement while dragging
 		connection = RunService.RenderStepped:Connect(function()
 			if dragging then
 				local mouse = player:GetMouse()
@@ -889,12 +917,41 @@ local function createMainGUI()
 			end
 		end)
 		
+		-- Stop dragging on mouse release
 		releaseConnection = UserInputService.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				dragging = false
 			end
 		end)
 		
+		-- Button clicks
+		minusBtn.MouseButton1Click:Connect(function()
+			local current = tonumber(valueBox.Text) or defaultVal
+			updateSlider(current - 1)
+		end)
+		
+		plusBtn.MouseButton1Click:Connect(function()
+			local current = tonumber(valueBox.Text) or defaultVal
+			updateSlider(current + 1)
+		end)
+		
+		-- Text input validation
+		valueBox.FocusLost:Connect(function()
+			local num = tonumber(valueBox.Text)
+			if num then
+				updateSlider(num)
+			else
+				updateSlider(defaultVal)
+			end
+		end)
+		
+		-- Hover effects for buttons
+		minusBtn.MouseEnter:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+		minusBtn.MouseLeave:Connect(function() tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
+		plusBtn.MouseEnter:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+		plusBtn.MouseLeave:Connect(function() tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
+		
+		-- Cleanup on destroy
 		container.AncestryChanged:Connect(function()
 			if not container.Parent then
 				if connection then connection:Disconnect() end
