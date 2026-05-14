@@ -1,7 +1,7 @@
--- AETHER MANIPULATOR v2.5
--- Fixed toggle/minimize functionality, removed backdrop overlay
+-- AETHER MANIPULATOR v2.6
+-- Fixed GUI with dark theme colors (black, white, grey)
 -- Natural physics only | No exploits
--- FIXED: GUI shows immediately, toggle button works correctly
+-- Orbit mode removed, color theme changed to monochrome
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -25,6 +25,21 @@ local spinAngle = 0
 local rainbowMode = false
 local forcedMaterial = nil
 local forcedColor = nil
+
+-- ==================== COLOR PALETTE (DARK THEME) ====================
+local Colors = {
+	BG_DARK = Color3.fromRGB(12, 12, 15),
+	BG_PANEL = Color3.fromRGB(20, 20, 25),
+	BG_TAB = Color3.fromRGB(25, 25, 30),
+	TEXT_PRIMARY = Color3.fromRGB(240, 240, 245),
+	TEXT_SECONDARY = Color3.fromRGB(150, 150, 160),
+	BORDER = Color3.fromRGB(50, 50, 60),
+	BUTTON_DARK = Color3.fromRGB(35, 35, 42),
+	BUTTON_HOVER = Color3.fromRGB(50, 50, 65),
+	STATUS_ACTIVE = Color3.fromRGB(80, 200, 120),
+	STATUS_IDLE = Color3.fromRGB(220, 80, 80),
+	STATUS_PROCESS = Color3.fromRGB(100, 150, 255),
+}
 
 -- ==================== UTILITIES ====================
 local function isValidTarget(part)
@@ -243,10 +258,6 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local r = radius * 0.3 + dist
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(a) * r, 2 + math.sin(t + i)*0.5, math.sin(a) * r))
 		
-	elseif mode == "orbit" then
-		local a = (i / n) * math.pi * 2 + t * 0.5
-		return origin + Vector3.new(math.cos(a) * radius, 2, math.sin(a) * radius)
-		
 	else
 		return origin + Vector3.new(0, 3, 0)
 	end
@@ -326,23 +337,12 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ==================== UI SYSTEM ====================
-local ACCENT = Color3.fromRGB(140, 120, 255)
-local ACCENT_GLOW = Color3.fromRGB(180, 160, 255)
-local BG_DARK = Color3.fromRGB(8, 8, 16)
-local BG_PANEL = Color3.fromRGB(14, 12, 28)
-local BG_TAB = Color3.fromRGB(18, 15, 35)
-local TEXT_PRIMARY = Color3.fromRGB(220, 215, 255)
-local TEXT_SECONDARY = Color3.fromRGB(140, 135, 180)
-local SUCCESS = Color3.fromRGB(100, 255, 180)
-local DANGER = Color3.fromRGB(255, 100, 120)
-
 local function tween(obj, props, dur)
 	TweenService:Create(obj, TweenInfo.new(dur or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
 end
 
 local function createMainGUI()
 	local pg = player:WaitForChild("PlayerGui")
-	-- Clean up old main gui if it exists
 	local oldMain = pg:FindFirstChild("AetherMain")
 	if oldMain then oldMain:Destroy() end
 	
@@ -356,7 +356,7 @@ local function createMainGUI()
 	local panel = Instance.new("Frame")
 	panel.Size = UDim2.fromOffset(340, 460)
 	panel.Position = UDim2.new(0.5, -170, 0.5, -230)
-	panel.BackgroundColor3 = BG_DARK
+	panel.BackgroundColor3 = Colors.BG_DARK
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
 	panel.ZIndex = 2
@@ -364,42 +364,30 @@ local function createMainGUI()
 	Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 16)
 	
 	local pStroke = Instance.new("UIStroke", panel)
-	pStroke.Color = ACCENT
-	pStroke.Thickness = 1.2
-	pStroke.Transparency = 0.3
+	pStroke.Color = Colors.BORDER
+	pStroke.Thickness = 1
+	pStroke.Transparency = 0.4
 	
 	local topBar = Instance.new("Frame")
 	topBar.Size = UDim2.new(1, 0, 0, 3)
-	topBar.BackgroundColor3 = ACCENT
+	topBar.BackgroundColor3 = Colors.TEXT_PRIMARY
 	topBar.BorderSizePixel = 0
 	topBar.ZIndex = 5
 	topBar.Parent = panel
-	Instance.new("UIGradient", topBar).Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 200, 255)),
-		ColorSequenceKeypoint.new(0.5, ACCENT),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 100, 200))
-	})
 	
 	local titleArea = Instance.new("Frame")
 	titleArea.Size = UDim2.new(1, 0, 0, 50)
-	titleArea.BackgroundColor3 = BG_PANEL
+	titleArea.BackgroundColor3 = Colors.BG_PANEL
 	titleArea.BorderSizePixel = 0
 	titleArea.ZIndex = 3
 	titleArea.Parent = panel
-	
-	local titleGrad = Instance.new("UIGradient", titleArea)
-	titleGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, BG_PANEL),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 18, 40))
-	})
-	titleGrad.Rotation = 90
 	
 	local titleIcon = Instance.new("TextLabel", titleArea)
 	titleIcon.Text = "◈"
 	titleIcon.Size = UDim2.fromOffset(28, 28)
 	titleIcon.Position = UDim2.fromOffset(14, 11)
 	titleIcon.BackgroundTransparency = 1
-	titleIcon.TextColor3 = ACCENT_GLOW
+	titleIcon.TextColor3 = Colors.TEXT_PRIMARY
 	titleIcon.TextSize = 20
 	titleIcon.Font = Enum.Font.GothamBold
 	titleIcon.ZIndex = 4
@@ -409,7 +397,7 @@ local function createMainGUI()
 	titleText.Size = UDim2.new(1, -90, 0, 20)
 	titleText.Position = UDim2.fromOffset(44, 8)
 	titleText.BackgroundTransparency = 1
-	titleText.TextColor3 = TEXT_PRIMARY
+	titleText.TextColor3 = Colors.TEXT_PRIMARY
 	titleText.TextSize = 14
 	titleText.Font = Enum.Font.GothamBold
 	titleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -420,7 +408,7 @@ local function createMainGUI()
 	subText.Size = UDim2.new(1, -90, 0, 14)
 	subText.Position = UDim2.fromOffset(44, 26)
 	subText.BackgroundTransparency = 1
-	subText.TextColor3 = TEXT_SECONDARY
+	subText.TextColor3 = Colors.TEXT_SECONDARY
 	subText.TextSize = 9
 	subText.Font = Enum.Font.Gotham
 	subText.TextXAlignment = Enum.TextXAlignment.Left
@@ -430,15 +418,15 @@ local function createMainGUI()
 	minBtn.Text = "−"
 	minBtn.Size = UDim2.fromOffset(32, 32)
 	minBtn.Position = UDim2.new(1, -72, 0, 9)
-	minBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-	minBtn.TextColor3 = TEXT_PRIMARY
+	minBtn.BackgroundColor3 = Colors.BUTTON_DARK
+	minBtn.TextColor3 = Colors.TEXT_PRIMARY
 	minBtn.TextSize = 16
 	minBtn.Font = Enum.Font.GothamBold
 	minBtn.BorderSizePixel = 0
 	minBtn.ZIndex = 4
 	Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
-	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(50, 50, 80)}, 0.15) end)
-	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(30, 30, 50)}, 0.15) end)
+	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
+	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
 	minBtn.MouseButton1Click:Connect(function()
 		sg.Enabled = false
 	end)
@@ -447,15 +435,15 @@ local function createMainGUI()
 	closeBtn.Text = "×"
 	closeBtn.Size = UDim2.fromOffset(32, 32)
 	closeBtn.Position = UDim2.new(1, -38, 0, 9)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
-	closeBtn.TextColor3 = DANGER
+	closeBtn.BackgroundColor3 = Color3.fromRGB(70, 25, 25)
+	closeBtn.TextColor3 = Colors.STATUS_IDLE
 	closeBtn.TextSize = 16
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.BorderSizePixel = 0
 	closeBtn.ZIndex = 4
 	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-	closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(90, 30, 30)}, 0.15) end)
-	closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(60, 20, 20)}, 0.15) end)
+	closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(100, 35, 35)}, 0.15) end)
+	closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(70, 25, 25)}, 0.15) end)
 	closeBtn.MouseButton1Click:Connect(function()
 		releaseAll()
 		sg:Destroy()
@@ -480,7 +468,7 @@ local function createMainGUI()
 	local tabBar = Instance.new("Frame")
 	tabBar.Size = UDim2.new(1, -20, 0, 36)
 	tabBar.Position = UDim2.fromOffset(10, 54)
-	tabBar.BackgroundColor3 = BG_TAB
+	tabBar.BackgroundColor3 = Colors.BG_TAB
 	tabBar.BorderSizePixel = 0
 	tabBar.ZIndex = 3
 	tabBar.Parent = panel
@@ -513,7 +501,7 @@ local function createMainGUI()
 		frame.BackgroundTransparency = 1
 		frame.BorderSizePixel = 0
 		frame.ScrollBarThickness = 3
-		frame.ScrollBarImageColor3 = ACCENT
+		frame.ScrollBarImageColor3 = Colors.BORDER
 		frame.CanvasSize = UDim2.fromOffset(0, 0)
 		frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		frame.ZIndex = 4
@@ -541,9 +529,9 @@ local function createMainGUI()
 		end
 		for name, btn in pairs(tabButtons) do
 			if name == tabName then
-				tween(btn, {BackgroundColor3 = ACCENT, BackgroundTransparency = 0, TextColor3 = Color3.new(1,1,1)}, 0.2)
+				tween(btn, {BackgroundColor3 = Colors.TEXT_PRIMARY, BackgroundTransparency = 0, TextColor3 = Colors.BG_DARK}, 0.2)
 			else
-				tween(btn, {BackgroundColor3 = Color3.new(0,0,0), BackgroundTransparency = 0.6, TextColor3 = TEXT_SECONDARY}, 0.2)
+				tween(btn, {BackgroundColor3 = Colors.BG_TAB, BackgroundTransparency = 0, TextColor3 = Colors.TEXT_SECONDARY}, 0.2)
 			end
 		end
 	end
@@ -552,9 +540,9 @@ local function createMainGUI()
 		local btn = Instance.new("TextButton")
 		btn.Text = tabName
 		btn.Size = UDim2.fromOffset(72, 28)
-		btn.BackgroundColor3 = (tabName == activeTab) and ACCENT or Color3.fromRGB(0, 0, 0)
-		btn.BackgroundTransparency = (tabName == activeTab) and 0 or 0.6
-		btn.TextColor3 = (tabName == activeTab) and Color3.new(1, 1, 1) or TEXT_SECONDARY
+		btn.BackgroundColor3 = (tabName == activeTab) and Colors.TEXT_PRIMARY or Colors.BG_TAB
+		btn.BackgroundTransparency = 0
+		btn.TextColor3 = (tabName == activeTab) and Colors.BG_DARK or Colors.TEXT_SECONDARY
 		btn.TextSize = 10
 		btn.Font = Enum.Font.GothamBold
 		btn.BorderSizePixel = 0
@@ -575,7 +563,7 @@ local function createMainGUI()
 		lbl.Text = text
 		lbl.Size = UDim2.new(1, 0, 0, 18)
 		lbl.BackgroundTransparency = 1
-		lbl.TextColor3 = color or ACCENT_GLOW
+		lbl.TextColor3 = color or Colors.TEXT_PRIMARY
 		lbl.TextSize = 10
 		lbl.Font = Enum.Font.GothamBold
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -587,8 +575,8 @@ local function createMainGUI()
 		local btn = Instance.new("TextButton", parent)
 		btn.Text = text
 		btn.Size = UDim2.new(1, 0, 0, 34)
-		btn.BackgroundColor3 = Color3.fromRGB(22, 18, 45)
-		btn.TextColor3 = accent or TEXT_PRIMARY
+		btn.BackgroundColor3 = Colors.BUTTON_DARK
+		btn.TextColor3 = accent or Colors.TEXT_PRIMARY
 		btn.TextSize = 11
 		btn.Font = Enum.Font.GothamBold
 		btn.BorderSizePixel = 0
@@ -597,22 +585,20 @@ local function createMainGUI()
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 		
 		local stroke = Instance.new("UIStroke", btn)
-		stroke.Color = accent or ACCENT
+		stroke.Color = Colors.BORDER
 		stroke.Thickness = 0.8
 		stroke.Transparency = 0.5
 		
 		btn.MouseEnter:Connect(function()
-			tween(btn, {BackgroundColor3 = Color3.fromRGB(35, 30, 70)}, 0.15)
-			tween(stroke, {Transparency = 0.2}, 0.15)
+			tween(btn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
 		end)
 		btn.MouseLeave:Connect(function()
-			tween(btn, {BackgroundColor3 = Color3.fromRGB(22, 18, 45)}, 0.15)
-			tween(stroke, {Transparency = 0.5}, 0.15)
+			tween(btn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
 		end)
 		btn.MouseButton1Click:Connect(function()
-			tween(btn, {BackgroundColor3 = accent or ACCENT}, 0.1)
+			tween(btn, {BackgroundColor3 = accent}, 0.1)
 			task.wait(0.1)
-			tween(btn, {BackgroundColor3 = Color3.fromRGB(35, 30, 70)}, 0.2)
+			tween(btn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.2)
 			callback()
 		end)
 		return btn
@@ -621,7 +607,7 @@ local function createMainGUI()
 	local function addToggle(parent, text, order, default, callback)
 		local frame = Instance.new("Frame", parent)
 		frame.Size = UDim2.new(1, 0, 0, 36)
-		frame.BackgroundColor3 = Color3.fromRGB(18, 15, 35)
+		frame.BackgroundColor3 = Colors.BG_TAB
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = order
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
@@ -631,7 +617,7 @@ local function createMainGUI()
 		lbl.Size = UDim2.new(0.7, 0, 1, 0)
 		lbl.Position = UDim2.fromOffset(10, 0)
 		lbl.BackgroundTransparency = 1
-		lbl.TextColor3 = TEXT_PRIMARY
+		lbl.TextColor3 = Colors.TEXT_PRIMARY
 		lbl.TextSize = 10
 		lbl.Font = Enum.Font.GothamBold
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -639,9 +625,9 @@ local function createMainGUI()
 		local toggle = Instance.new("TextButton", frame)
 		toggle.Size = UDim2.fromOffset(44, 22)
 		toggle.Position = UDim2.new(1, -56, 0.5, -11)
-		toggle.BackgroundColor3 = default and SUCCESS or Color3.fromRGB(60, 60, 80)
+		toggle.BackgroundColor3 = default and Colors.STATUS_ACTIVE or Color3.fromRGB(60, 60, 70)
 		toggle.Text = default and "ON" or "OFF"
-		toggle.TextColor3 = Color3.new(1, 1, 1)
+		toggle.TextColor3 = Colors.TEXT_PRIMARY
 		toggle.TextSize = 9
 		toggle.Font = Enum.Font.GothamBold
 		toggle.BorderSizePixel = 0
@@ -650,18 +636,18 @@ local function createMainGUI()
 		local state = default
 		toggle.MouseButton1Click:Connect(function()
 			state = not state
-			tween(toggle, {BackgroundColor3 = state and SUCCESS or Color3.fromRGB(60, 60, 80)}, 0.2)
+			tween(toggle, {BackgroundColor3 = state and Colors.STATUS_ACTIVE or Color3.fromRGB(60, 60, 70)}, 0.2)
 			toggle.Text = state and "ON" or "OFF"
 			callback(state)
 		end)
 	end
 	
 	local function addSlider(parent, text, order, min, max, default, callback)
-		addSectionLabel(parent, text, order, TEXT_SECONDARY)
+		addSectionLabel(parent, text, order, Colors.TEXT_SECONDARY)
 		
 		local frame = Instance.new("Frame", parent)
 		frame.Size = UDim2.new(1, 0, 0, 40)
-		frame.BackgroundColor3 = Color3.fromRGB(18, 15, 35)
+		frame.BackgroundColor3 = Colors.BG_TAB
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = order + 1
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
@@ -670,8 +656,8 @@ local function createMainGUI()
 		box.Text = tostring(default)
 		box.Size = UDim2.fromOffset(60, 26)
 		box.Position = UDim2.new(1, -68, 0.5, -13)
-		box.BackgroundColor3 = Color3.fromRGB(30, 26, 55)
-		box.TextColor3 = TEXT_PRIMARY
+		box.BackgroundColor3 = Colors.BUTTON_DARK
+		box.TextColor3 = Colors.TEXT_PRIMARY
 		box.TextSize = 11
 		box.Font = Enum.Font.GothamBold
 		box.ClearTextOnFocus = false
@@ -690,7 +676,7 @@ local function createMainGUI()
 	
 	-- ===== SHAPES TAB =====
 	local shapesFrame = tabContents["SHAPES"]
-	addSectionLabel(shapesFrame, "SELECT FORMATION", 0, ACCENT_GLOW)
+	addSectionLabel(shapesFrame, "SELECT FORMATION", 0, Colors.TEXT_PRIMARY)
 	
 	local shapesGrid = Instance.new("Frame", shapesFrame)
 	shapesGrid.Size = UDim2.new(1, 0, 0, 280)
@@ -702,21 +688,17 @@ local function createMainGUI()
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	
 	for key, data in pairs(SHAPE_DATA) do
-		addActionBtn(shapesGrid, data.icon.." "..data.name, 0, Color3.fromRGB(160, 140, 255), function()
+		addActionBtn(shapesGrid, data.icon.." "..data.name, 0, Colors.TEXT_PRIMARY, function()
 			currentMode = key; isActive = true; sweepParts()
 		end)
 	end
 	
-	addActionBtn(shapesFrame, "◉  ORBIT MODE", 2, Color3.fromRGB(100, 200, 255), function()
-		currentMode = "orbit"; isActive = true; sweepParts()
-	end)
-	
-	addSectionLabel(shapesFrame, "QUICK ACTIONS", 10, TEXT_SECONDARY)
-	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 11, SUCCESS, function() sweepParts() end)
+	addSectionLabel(shapesFrame, "QUICK ACTIONS", 10, Colors.TEXT_SECONDARY)
+	addActionBtn(shapesFrame, "⟳  REFRESH / SCAN", 11, Colors.STATUS_ACTIVE, function() sweepParts() end)
 	
 	-- ===== STYLE TAB =====
 	local styleFrame = tabContents["STYLE"]
-	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, ACCENT_GLOW)
+	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, Colors.TEXT_PRIMARY)
 	
 	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v)
 		rainbowMode = v
@@ -731,7 +713,7 @@ local function createMainGUI()
 		forcedMaterial = v and Enum.Material.Neon or nil
 	end)
 	
-	addSectionLabel(styleFrame, "SOLID COLOR", 10, TEXT_SECONDARY)
+	addSectionLabel(styleFrame, "SOLID COLOR", 10, Colors.TEXT_SECONDARY)
 	
 	local colorGrid = Instance.new("Frame", styleFrame)
 	colorGrid.Size = UDim2.new(1, 0, 0, 80)
@@ -766,7 +748,7 @@ local function createMainGUI()
 		end)
 	end
 	
-	addActionBtn(styleFrame, "↺  RESET COLORS", 20, DANGER, function()
+	addActionBtn(styleFrame, "↺  RESET COLORS", 20, Colors.STATUS_IDLE, function()
 		forcedColor = nil; rainbowMode = false; forcedMaterial = nil
 		for part, data in pairs(controlled) do
 			pcall(function() part.Color = data.origColor; part.Material = data.origMat end)
@@ -775,24 +757,24 @@ local function createMainGUI()
 	
 	-- ===== PHYSICS TAB =====
 	local physFrame = tabContents["PHYSICS"]
-	addSectionLabel(physFrame, "PHYSICS SETTINGS", 0, ACCENT_GLOW)
+	addSectionLabel(physFrame, "PHYSICS SETTINGS", 0, Colors.TEXT_PRIMARY)
 	
 	addSlider(physFrame, "Formation Radius", 1, 1, 100, radius, function(v) radius = v end)
 	addSlider(physFrame, "Pull Strength", 3, 1000, 1e6, pullStrength, function(v) pullStrength = v end)
 	addSlider(physFrame, "Spin Speed", 5, -20, 20, spinSpeed, function(v) spinSpeed = v end)
 	
-	addSectionLabel(physFrame, "BEHAVIOR", 10, TEXT_SECONDARY)
+	addSectionLabel(physFrame, "BEHAVIOR", 10, Colors.TEXT_SECONDARY)
 	addToggle(physFrame, "Auto-Scan Nearby", 11, false, function(v) end)
 	
 	-- ===== SYSTEM TAB =====
 	local sysFrame = tabContents["SYSTEM"]
-	addSectionLabel(sysFrame, "SYSTEM CONTROL", 0, ACCENT_GLOW)
+	addSectionLabel(sysFrame, "SYSTEM CONTROL", 0, Colors.TEXT_PRIMARY)
 	
 	local statusLbl = Instance.new("TextLabel", sysFrame)
 	statusLbl.Text = "STATUS: IDLE"
 	statusLbl.Size = UDim2.new(1, 0, 0, 20)
 	statusLbl.BackgroundTransparency = 1
-	statusLbl.TextColor3 = TEXT_SECONDARY
+	statusLbl.TextColor3 = Colors.STATUS_IDLE
 	statusLbl.TextSize = 11
 	statusLbl.Font = Enum.Font.GothamBold
 	statusLbl.LayoutOrder = 1
@@ -801,16 +783,16 @@ local function createMainGUI()
 		while sg.Parent do
 			statusLbl.Text = string.format("STATUS: %s  |  PARTS: %d  |  MODE: %s",
 				isActive and "ACTIVE" or "IDLE", partCount, currentMode:upper())
-			statusLbl.TextColor3 = isActive and SUCCESS or DANGER
+			statusLbl.TextColor3 = isActive and Colors.STATUS_ACTIVE or Colors.STATUS_IDLE
 			task.wait(0.3)
 		end
 	end)
 	
-	addSectionLabel(sysFrame, "DANGER ZONE", 10, DANGER)
-	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, DANGER, function()
+	addSectionLabel(sysFrame, "DANGER ZONE", 10, Colors.STATUS_IDLE)
+	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, function()
 		releaseAll()
 	end)
-	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Color3.fromRGB(150, 50, 50), function()
+	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Colors.STATUS_IDLE, function()
 		releaseAll(); sg:Destroy()
 	end)
 	
@@ -834,5 +816,4 @@ UserInputService.InputBegan:Connect(function(inp, processed)
 end)
 
 -- ==================== INIT ====================
--- Start with main GUI visible immediately
 createMainGUI()
