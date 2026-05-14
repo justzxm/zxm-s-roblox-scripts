@@ -1,4 +1,4 @@
--- AETHER MANIPULATOR v2.7
+-- AETHER MANIPULATOR v2.8 (FIXED)
 -- Redesigned shapes tab with 1 column, expandable previews, and customization sliders
 -- Natural physics only | No exploits
 -- Dark theme with monochrome colors
@@ -539,7 +539,7 @@ local function createMainGUI()
 		frame.ScrollBarThickness = 3
 		frame.ScrollBarImageColor3 = Colors.BORDER
 		frame.CanvasSize = UDim2.fromOffset(0, 0)
-		frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		frame.AutomaticCanvasSize = Enum.AutomaticSize.None
 		frame.ZIndex = 4
 		frame.Visible = (name == activeTab)
 		frame.Parent = contentFrame
@@ -678,6 +678,7 @@ local function createMainGUI()
 		end)
 	end
 	
+	
 	local function addSlider(parent, text, order, min, max, default, callback)
 		addSectionLabel(parent, text, order, Colors.TEXT_SECONDARY)
 		
@@ -688,10 +689,22 @@ local function createMainGUI()
 		frame.LayoutOrder = order + 0.5
 		Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 		
+		local minusBtn = Instance.new("TextButton", frame)
+		minusBtn.Text = "−"
+		minusBtn.Size = UDim2.fromOffset(32, 26)
+		minusBtn.Position = UDim2.new(0, 8, 0.5, -13)
+		minusBtn.BackgroundColor3 = Colors.BUTTON_DARK
+		minusBtn.TextColor3 = Colors.TEXT_PRIMARY
+		minusBtn.TextSize = 14
+		minusBtn.Font = Enum.Font.GothamBold
+		minusBtn.BorderSizePixel = 0
+		Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
+		minusBtn.AutoButtonColor = false
+		
 		local box = Instance.new("TextBox", frame)
 		box.Text = tostring(math.floor(default * 10) / 10)
-		box.Size = UDim2.fromOffset(60, 26)
-		box.Position = UDim2.new(1, -68, 0.5, -13)
+		box.Size = UDim2.fromOffset(80, 26)
+		box.Position = UDim2.new(0.5, -40, 0.5, -13)
 		box.BackgroundColor3 = Colors.BUTTON_DARK
 		box.TextColor3 = Colors.TEXT_PRIMARY
 		box.TextSize = 11
@@ -700,53 +713,223 @@ local function createMainGUI()
 		box.BorderSizePixel = 0
 		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 		
+		local plusBtn = Instance.new("TextButton", frame)
+		plusBtn.Text = "+"
+		plusBtn.Size = UDim2.fromOffset(32, 26)
+		plusBtn.Position = UDim2.new(1, -48, 0.5, -13)
+		plusBtn.BackgroundColor3 = Colors.BUTTON_DARK
+		plusBtn.TextColor3 = Colors.TEXT_PRIMARY
+		plusBtn.TextSize = 14
+		plusBtn.Font = Enum.Font.GothamBold
+		plusBtn.BorderSizePixel = 0
+		Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
+		plusBtn.AutoButtonColor = false
+		
+		local function updateValue(newVal)
+			newVal = math.clamp(newVal, min, max)
+			box.Text = tostring(math.floor(newVal * 10) / 10)
+			callback(newVal)
+		end
+		
+		minusBtn.MouseButton1Click:Connect(function()
+			local current = tonumber(box.Text) or default
+			local step = (max - min) / 20
+			updateValue(current - step)
+		end)
+		
+		plusBtn.MouseButton1Click:Connect(function()
+			local current = tonumber(box.Text) or default
+			local step = (max - min) / 20
+			updateValue(current + step)
+		end)
+		
 		box.FocusLost:Connect(function()
 			local num = tonumber(box.Text)
 			if num then
-				num = math.clamp(num, min, max)
-				box.Text = tostring(math.floor(num * 10) / 10)
-				callback(num)
+				updateValue(num)
 			end
+		end)
+		
+		minusBtn.MouseEnter:Connect(function()
+			tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
+		end)
+		minusBtn.MouseLeave:Connect(function()
+			tween(minusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
+		end)
+		
+		plusBtn.MouseEnter:Connect(function()
+			tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
+		end)
+		plusBtn.MouseLeave:Connect(function()
+			tween(plusBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
 		end)
 		
 		return box
 	end
 	
-	-- ===== SHAPES TAB (REDESIGNED) =====
+	-- ===== SHAPES TAB (REDESIGNED - 1 COLUMN WITH EXPANDABLE PREVIEWS) =====
 	local shapesFrame = tabContents["SHAPES"]
-	addSectionLabel(shapesFrame, "SELECT & CUSTOMIZE", 0, Colors.TEXT_PRIMARY)
+	addSectionLabel(shapesFrame, "SHAPE FORMATIONS", 0, Colors.TEXT_PRIMARY)
 	
-	local shapesListContainer = Instance.new("Frame", shapesFrame)
-	shapesListContainer.Name = "ShapesListContainer"
-	shapesListContainer.Size = UDim2.new(1, 0, 1, -25)
-	shapesListContainer.BackgroundTransparency = 1
-	shapesListContainer.LayoutOrder = 1
-	shapesListContainer.ClipsDescendants = true
+	-- Scrollable container for shapes list
+	local shapesScrollingFrame = Instance.new("ScrollingFrame", shapesFrame)
+	shapesScrollingFrame.Name = "ShapesScrollingFrame"
+	shapesScrollingFrame.Size = UDim2.new(1, 0, 1, -50)
+	shapesScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
+	shapesScrollingFrame.BackgroundTransparency = 1
+	shapesScrollingFrame.ScrollBarThickness = 8
+	shapesScrollingFrame.ScrollBarImageColor3 = Colors.BORDER
+	shapesScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	shapesScrollingFrame.LayoutOrder = 1
 	
-	local shapesLayout = Instance.new("UIListLayout", shapesListContainer)
-	shapesLayout.Padding = UDim.new(0, 5)
+	local shapesLayout = Instance.new("UIListLayout", shapesScrollingFrame)
+	shapesLayout.Padding = UDim.new(0, 6)
 	shapesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	shapesLayout.FillDirection = Enum.FillDirection.Vertical
 	
-	local shapePadding = Instance.new("UIPadding", shapesListContainer)
+	local shapePadding = Instance.new("UIPadding", shapesScrollingFrame)
 	shapePadding.PaddingLeft = UDim.new(0, 8)
-	shapePadding.PaddingRight = UDim.new(0, 8)
+	shapePadding.PaddingRight = UDim.new(0, 12)
 	shapePadding.PaddingTop = UDim.new(0, 4)
 	
-	-- Helper to create customization sliders for each shape
+	-- Helper function to update canvas size
+	local function updateShapesCanvas()
+		shapesScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, shapesLayout.AbsoluteContentSize.Y + 10)
+	end
+	
+	-- Update canvas when layout content changes
+	shapesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateShapesCanvas)
+	-- Also update when children are added/removed (in case layout event doesn't fire)
+	local function onChildAdded() task.wait(0.05); updateShapesCanvas() end
+	shapesScrollingFrame.ChildAdded:Connect(onChildAdded)
+	shapesScrollingFrame.ChildRemoved:Connect(onChildAdded)
+	
+	-- Helper function to create interactive slider widget for preview panels
+	local function createPreviewSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
+		local container = Instance.new("Frame", parent)
+		container.Size = UDim2.new(1, 0, 0, 45)
+		container.BackgroundTransparency = 1
+		
+		local label = Instance.new("TextLabel", container)
+		label.Text = labelText
+		label.Size = UDim2.new(0.4, -5, 0, 20)
+		label.Position = UDim2.new(0, 0, 0, 12)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Colors.TEXT_SECONDARY
+		label.TextSize = 11
+		label.Font = Enum.Font.GothamBold
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		
+		local sliderBG = Instance.new("Frame", container)
+		sliderBG.Name = "SliderBG"
+		sliderBG.Size = UDim2.new(0.45, -5, 0, 8)
+		sliderBG.Position = UDim2.new(0.4, 0, 0, 18)
+		sliderBG.BackgroundColor3 = Colors.BUTTON_DARK
+		sliderBG.BorderSizePixel = 0
+		Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(0, 4)
+		
+		local handle = Instance.new("Frame", sliderBG)
+		handle.Name = "Handle"
+		handle.Size = UDim2.new(0, 14, 1, 0)
+		handle.BackgroundColor3 = Colors.STATUS_PROCESS
+		handle.BorderSizePixel = 0
+		handle.ZIndex = 10
+		Instance.new("UICorner", handle).CornerRadius = UDim.new(0, 3)
+		
+		local valueLabel = Instance.new("TextLabel", container)
+		valueLabel.Text = tostring(math.floor(defaultVal * 10) / 10)
+		valueLabel.Size = UDim2.new(0.15, 0, 0, 20)
+		valueLabel.Position = UDim2.new(0.85, 0, 0, 12)
+		valueLabel.BackgroundColor3 = Colors.BUTTON_DARK
+		valueLabel.TextColor3 = Colors.TEXT_PRIMARY
+		valueLabel.TextSize = 10
+		valueLabel.Font = Enum.Font.GothamBold
+		valueLabel.BorderSizePixel = 0
+		valueLabel.TextYAlignment = Enum.TextYAlignment.Center
+		Instance.new("UICorner", valueLabel).CornerRadius = UDim.new(0, 4)
+		
+		local dragging = false
+		local connection = nil
+		
+		local function updateSlider(val)
+			val = math.clamp(val, minVal, maxVal)
+			local normalized = (val - minVal) / (maxVal - minVal)
+			handle.Position = UDim2.new(normalized, -7, 0, -3)
+			valueLabel.Text = tostring(math.floor(val * 10) / 10)
+			callback(val)
+		end
+		
+		handle.InputBegan:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+			end
+		end)
+		
+		local inputService = game:GetService("UserInputService")
+		inputService.InputEnded:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
+		end)
+		
+		sliderBG.InputBegan:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+				local mouse = player:GetMouse()
+				local sliderPos = sliderBG.AbsolutePosition.X
+				local sliderSize = sliderBG.AbsoluteSize.X
+				local mousePos = mouse.X
+				local normalized = math.clamp((mousePos - sliderPos) / sliderSize, 0, 1)
+				local val = minVal + normalized * (maxVal - minVal)
+				updateSlider(val)
+				dragging = true
+			end
+		end)
+		
+		connection = RunService.RenderStepped:Connect(function()
+			if dragging then
+				local mouse = player:GetMouse()
+				local sliderPos = sliderBG.AbsolutePosition.X
+				local sliderSize = sliderBG.AbsoluteSize.X
+				local mousePos = mouse.X
+				local normalized = math.clamp((mousePos - sliderPos) / sliderSize, 0, 1)
+				local val = minVal + normalized * (maxVal - minVal)
+				updateSlider(val)
+			end
+		end)
+		
+		updateSlider(defaultVal)
+		
+		-- Clean up connection when container is destroyed
+		container.AncestryChanged:Connect(function()
+			if not container.Parent then connection:Disconnect() end
+		end)
+		
+		return container
+	end
+	
+	-- Helper to create each shape item with preview button
 	local function createShapeItem(shapeKey, shapeData, index)
-		local shapeContainer = Instance.new("Frame", shapesListContainer)
+		local shapeContainer = Instance.new("Frame", shapesScrollingFrame)
 		shapeContainer.Name = shapeKey .. "Container"
 		shapeContainer.Size = UDim2.new(1, 0, 0, 50)
-		shapeContainer.BackgroundColor3 = Colors.BUTTON_DARK
-		shapeContainer.BorderSizePixel = 0
+		shapeContainer.BackgroundTransparency = 1
 		shapeContainer.LayoutOrder = index
 		shapeContainer.ClipsDescendants = true
-		Instance.new("UICorner", shapeContainer).CornerRadius = UDim.new(0, 8)
 		
-		-- Main button area
-		local mainBtn = Instance.new("TextButton", shapeContainer)
+		local headerFrame = Instance.new("Frame", shapeContainer)
+		headerFrame.Name = "Header"
+		headerFrame.Size = UDim2.new(1, 0, 0, 50)
+		headerFrame.Position = UDim2.new(0, 0, 0, 0)
+		headerFrame.BackgroundColor3 = Colors.BG_PANEL
+		headerFrame.BorderSizePixel = 1
+		headerFrame.BorderColor3 = Colors.BORDER
+		headerFrame.ZIndex = 100
+		Instance.new("UICorner", headerFrame).CornerRadius = UDim.new(0, 8)
+		
+		local mainBtn = Instance.new("TextButton", headerFrame)
 		mainBtn.Name = "MainButton"
-		mainBtn.Size = UDim2.new(1, -40, 1, 0)
+		mainBtn.Size = UDim2.new(1, -45, 1, 0)
 		mainBtn.BackgroundTransparency = 1
 		mainBtn.Text = shapeData.icon .. "  " .. shapeData.name
 		mainBtn.TextColor3 = Colors.TEXT_PRIMARY
@@ -755,43 +938,32 @@ local function createMainGUI()
 		mainBtn.TextXAlignment = Enum.TextXAlignment.Left
 		mainBtn.AutoButtonColor = false
 		
-		-- Preview/expand button (arrow)
-		local previewBtn = Instance.new("TextButton", shapeContainer)
+		local previewBtn = Instance.new("TextButton", headerFrame)
 		previewBtn.Name = "PreviewButton"
-		previewBtn.AnchorPoint = Vector2.new(1, 0.5)
-		previewBtn.Position = UDim2.new(1, -8, 0.5, 0)
-		previewBtn.Size = UDim2.fromOffset(32, 32)
-		previewBtn.BackgroundColor3 = Colors.BUTTON_DARK
-		previewBtn.Text = "›"
+		previewBtn.Size = UDim2.new(0, 40, 1, 0)
+		previewBtn.Position = UDim2.new(1, -40, 0, 0)
+		previewBtn.BackgroundTransparency = 1
+		previewBtn.Text = "▶"
 		previewBtn.TextColor3 = Colors.TEXT_SECONDARY
-		previewBtn.TextSize = 18
+		previewBtn.TextSize = 16
 		previewBtn.Font = Enum.Font.GothamBold
-		previewBtn.BorderSizePixel = 0
 		previewBtn.AutoButtonColor = false
-		Instance.new("UICorner", previewBtn).CornerRadius = UDim.new(0, 6)
+		previewBtn.Rotation = 0
+		previewBtn.ZIndex = 101
 		
-		shapeContainer.MouseEnter:Connect(function()
-			tween(shapeContainer, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15)
+		headerFrame.MouseEnter:Connect(function()
+			tween(headerFrame, {BackgroundColor3 = Colors.BG_HOVER}, 0.15)
 		end)
-		shapeContainer.MouseLeave:Connect(function()
-			tween(shapeContainer, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
-		end)
-		
-		previewBtn.MouseEnter:Connect(function()
-			tween(previewBtn, {BackgroundColor3 = Colors.BG_HOVER}, 0.15)
-		end)
-		previewBtn.MouseLeave:Connect(function()
-			tween(previewBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15)
+		headerFrame.MouseLeave:Connect(function()
+			tween(headerFrame, {BackgroundColor3 = Colors.BG_PANEL}, 0.15)
 		end)
 		
-		-- Execute shape on main button click
 		mainBtn.MouseButton1Click:Connect(function()
 			currentMode = shapeKey
 			isActive = true
 			sweepParts()
 		end)
 		
-		-- Preview panel (hidden by default)
 		local isExpanded = false
 		local previewPanel = nil
 		
@@ -799,18 +971,17 @@ local function createMainGUI()
 			isExpanded = not isExpanded
 			
 			if isExpanded then
-				-- Rotate arrow
 				tween(previewBtn, {Rotation = 90}, 0.2)
 				
-				-- Create preview panel
 				previewPanel = Instance.new("Frame", shapeContainer)
 				previewPanel.Name = "PreviewPanel"
-				previewPanel.Position = UDim2.new(0, 0, 1, 0)
+				previewPanel.Position = UDim2.new(0, 0, 0, 50)
 				previewPanel.Size = UDim2.new(1, 0, 0, 0)
-				previewPanel.BackgroundColor3 = Colors.BG_TAB
-				previewPanel.BorderSizePixel = 0
+				previewPanel.BackgroundColor3 = Colors.BG_DARK
+				previewPanel.BorderColor3 = Colors.BORDER
+				previewPanel.BorderSizePixel = 1
 				previewPanel.ClipsDescendants = true
-				Instance.new("UICorner", previewPanel).CornerRadius = UDim.new(0, 8)
+				Instance.new("UICorner", previewPanel).CornerRadius = UDim.new(0, 6)
 				
 				local previewContent = Instance.new("Frame", previewPanel)
 				previewContent.Name = "Content"
@@ -820,139 +991,111 @@ local function createMainGUI()
 				local contentLayout = Instance.new("UIListLayout", previewContent)
 				contentLayout.Padding = UDim.new(0, 6)
 				contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				contentLayout.FillDirection = Enum.FillDirection.Vertical
 				
 				local contentPad = Instance.new("UIPadding", previewContent)
-				contentPad.PaddingLeft = UDim.new(0, 10)
-				contentPad.PaddingRight = UDim.new(0, 10)
+				contentPad.PaddingLeft = UDim.new(0, 12)
+				contentPad.PaddingRight = UDim.new(0, 12)
 				contentPad.PaddingTop = UDim.new(0, 8)
 				contentPad.PaddingBottom = UDim.new(0, 8)
 				
-				-- Description
 				local descLabel = Instance.new("TextLabel", previewContent)
 				descLabel.Text = shapeData.description
-				descLabel.Size = UDim2.new(1, 0, 0, 0)
-				descLabel.AutomaticSize = Enum.AutomaticSize.Y
+				descLabel.Size = UDim2.new(1, 0, 0, 25)
 				descLabel.BackgroundTransparency = 1
 				descLabel.TextColor3 = Colors.TEXT_SECONDARY
-				descLabel.TextSize = 11
+				descLabel.TextSize = 10
 				descLabel.Font = Enum.Font.Gotham
 				descLabel.TextWrapped = true
 				descLabel.TextXAlignment = Enum.TextXAlignment.Left
+				descLabel.TextYAlignment = Enum.TextYAlignment.Top
 				descLabel.LayoutOrder = 0
 				
-				-- Create customization sliders based on shape type
-				local sliderOrder = 1
 				local customizations = shapeCustomizations[shapeKey] or {}
 				
 				if shapeKey == "wave" then
-					sliderOrder += 1
-					local waveBox = addSlider(previewContent, "Wavelength", sliderOrder, 1, 20, customizations.wavelength or 8, function(v)
+					createPreviewSlider(previewContent, "Wavelength", 2, 20, customizations.wavelength or 8, function(v)
 						shapeCustomizations.wave.wavelength = v
 					end)
-					
-					sliderOrder += 2
-					local ampBox = addSlider(previewContent, "Amplitude", sliderOrder, 1, 20, customizations.amplitude or 5, function(v)
+					createPreviewSlider(previewContent, "Amplitude", 1, 15, customizations.amplitude or 5, function(v)
 						shapeCustomizations.wave.amplitude = v
 					end)
-					
-					sliderOrder += 2
-					local freqBox = addSlider(previewContent, "Frequency", sliderOrder, 0.5, 5, customizations.frequency or 2, function(v)
+					createPreviewSlider(previewContent, "Frequency", 0.5, 5, customizations.frequency or 2, function(v)
 						shapeCustomizations.wave.frequency = v
 					end)
-					
 				elseif shapeKey == "spiral" then
-					sliderOrder += 1
-					addSlider(previewContent, "Tightness", sliderOrder, 1, 10, customizations.tightness or 5, function(v)
+					createPreviewSlider(previewContent, "Tightness", 1, 15, customizations.tightness or 5, function(v)
 						shapeCustomizations.spiral.tightness = v
 					end)
-					
-					sliderOrder += 2
-					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
 						shapeCustomizations.spiral.height = v
 					end)
-					
 				elseif shapeKey == "star" then
-					sliderOrder += 1
-					addSlider(previewContent, "Points", sliderOrder, 3, 12, customizations.points or 5, function(v)
+					createPreviewSlider(previewContent, "Points", 3, 12, customizations.points or 5, function(v)
 						shapeCustomizations.star.points = math.floor(v)
 					end)
-					
-					sliderOrder += 2
-					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
 						shapeCustomizations.star.radius = v
 					end)
-					
 				elseif shapeKey == "tornado" then
-					sliderOrder += 1
-					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
 						shapeCustomizations.tornado.height = v
 					end)
-					
-					sliderOrder += 2
-					addSlider(previewContent, "Width", sliderOrder, 5, 30, customizations.width or 10, function(v)
+					createPreviewSlider(previewContent, "Width", 5, 30, customizations.width or 10, function(v)
 						shapeCustomizations.tornado.width = v
 					end)
-					
 				elseif shapeKey == "ring" then
-					sliderOrder += 1
-					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
 						shapeCustomizations.ring.radius = v
 					end)
-					
 				elseif shapeKey == "sphere" then
-					sliderOrder += 1
-					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
 						shapeCustomizations.sphere.radius = v
 					end)
-					
 				elseif shapeKey == "pyramid" then
-					sliderOrder += 1
-					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
 						shapeCustomizations.pyramid.height = v
 					end)
-					
 				elseif shapeKey == "wall" then
-					sliderOrder += 1
-					addSlider(previewContent, "Density", sliderOrder, 1, 10, customizations.density or 5, function(v)
+					createPreviewSlider(previewContent, "Density", 1, 10, customizations.density or 5, function(v)
 						shapeCustomizations.wall.density = v
 					end)
-					
 				elseif shapeKey == "helix" then
-					sliderOrder += 1
-					addSlider(previewContent, "Turns", sliderOrder, 1, 10, customizations.turns or 4, function(v)
+					createPreviewSlider(previewContent, "Turns", 1, 10, customizations.turns or 4, function(v)
 						shapeCustomizations.helix.turns = math.floor(v)
 					end)
-					
-					sliderOrder += 2
-					addSlider(previewContent, "Height", sliderOrder, 5, 50, customizations.height or 20, function(v)
+					createPreviewSlider(previewContent, "Height", 5, 50, customizations.height or 20, function(v)
 						shapeCustomizations.helix.height = v
 					end)
-					
 				elseif shapeKey == "grid" then
-					sliderOrder += 1
-					addSlider(previewContent, "Spacing", sliderOrder, 1, 10, customizations.spacing or 2, function(v)
+					createPreviewSlider(previewContent, "Spacing", 1, 10, customizations.spacing or 2, function(v)
 						shapeCustomizations.grid.spacing = v
 					end)
-					
 				elseif shapeKey == "flower" then
-					sliderOrder += 1
-					addSlider(previewContent, "Petals", sliderOrder, 3, 12, customizations.petals or 6, function(v)
+					createPreviewSlider(previewContent, "Petals", 3, 12, customizations.petals or 6, function(v)
 						shapeCustomizations.flower.petals = math.floor(v)
 					end)
-					
-					sliderOrder += 2
-					addSlider(previewContent, "Radius", sliderOrder, 5, 50, customizations.radius or 20, function(v)
+					createPreviewSlider(previewContent, "Radius", 5, 50, customizations.radius or 20, function(v)
 						shapeCustomizations.flower.radius = v
 					end)
 				end
 				
-				-- Animate expand
-				local targetHeight = 120 + (sliderOrder * 35)
+				-- Wait for layout to compute, then get actual content height
+				task.wait(0.05)
+				local contentHeight = 0
+				for _, child in ipairs(previewContent:GetChildren()) do
+					if child:IsA("Frame") or child:IsA("TextLabel") then
+						contentHeight += child.AbsoluteSize.Y
+					end
+				end
+				contentHeight = contentHeight + 25 + 10 -- padding
+				local targetHeight = math.max(contentHeight, 80)
+				
 				tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50 + targetHeight)}, 0.3)
 				tween(previewPanel, {Size = UDim2.new(1, 0, 0, targetHeight)}, 0.3)
-				
+				task.wait(0.35)
+				updateShapesCanvas()
 			else
-				-- Collapse
 				tween(previewBtn, {Rotation = 0}, 0.2)
 				if previewPanel then
 					tween(shapeContainer, {Size = UDim2.new(1, 0, 0, 50)}, 0.3)
@@ -960,12 +1103,13 @@ local function createMainGUI()
 					task.wait(0.3)
 					previewPanel:Destroy()
 					previewPanel = nil
+					updateShapesCanvas()
 				end
 			end
 		end)
 	end
 	
-	-- Create all shape items
+	-- Create all 15 shape items in 1-column layout
 	local shapeOrder = 1
 	for _, shapeKey in ipairs({"heart", "wall", "box", "ring", "sphere", "spiral", "star", "diamond", "cross", "wave", "helix", "pyramid", "grid", "tornado", "flower"}) do
 		createShapeItem(shapeKey, SHAPE_DATA[shapeKey], shapeOrder)
