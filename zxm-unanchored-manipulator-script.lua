@@ -1,6 +1,6 @@
--- AETHER MANIPULATOR v3.5 (FULLY FIXED)
+-- AETHER MANIPULATOR v3.6 (FULLY FIXED)
 -- 30 shapes + 5 behaviors + themes & UI settings
--- No errors, stable theme switching, scrollable Settings tab
+-- No errors, stable minimize/restore, scrollable Settings tab
 -- Natural physics only | No exploits
 
 local Players = game:GetService("Players")
@@ -182,7 +182,7 @@ local Themes = {
 }
 local Colors = Themes.dark
 
--- Global GUI references
+-- Global GUI references (will be set in createMainGUI)
 local activeGUI = nil
 local miniButton = nil
 
@@ -677,15 +677,21 @@ local function applyGUISize(panel)
 	panel.Position = UDim2.new(0.5, -panelWidth/2, 0.5, -panelHeight/2)
 end
 
-local function restoreGUI()
+-- Global restore function that works with current activeGUI
+local function restoreMainGUI()
 	if activeGUI then
 		activeGUI.Enabled = true
-		if miniButton then miniButton.Visible = false end
+	end
+	if miniButton then
+		miniButton.Visible = false
 	end
 end
 
-local function minimizeToButton(sg, panelFrame)
-	if miniButton then miniButton:Destroy() end
+-- Minimize function (needs to know the current Colors)
+local function minimizeMainGUI(sg, panel)
+	if miniButton then
+		miniButton:Destroy()
+	end
 	miniButton = Instance.new("Frame")
 	miniButton.Size = UDim2.fromOffset(50, 50)
 	miniButton.Position = UDim2.new(0.5, -25, 0.5, -25)
@@ -720,10 +726,10 @@ local function minimizeToButton(sg, panelFrame)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 	end)
 	miniButton.MouseButton1Click:Connect(function()
-		restoreGUI()
+		restoreMainGUI()
 	end)
 	miniButton.Parent = player:WaitForChild("PlayerGui")
-	activeGUI.Enabled = false
+	sg.Enabled = false
 end
 
 -- ==================== RECREATE GUI (THEME SWITCH) ====================
@@ -794,7 +800,7 @@ function createMainGUI()
 	titleIcon.ZIndex = 4
 	
 	local titleText = Instance.new("TextLabel", titleArea)
-	titleText.Text = "AETHER MANIPULATOR v3.5"
+	titleText.Text = "AETHER MANIPULATOR v3.6"
 	titleText.Size = UDim2.new(1, -90, 0, 20)
 	titleText.Position = UDim2.fromOffset(44, 8)
 	titleText.BackgroundTransparency = 1
@@ -829,7 +835,7 @@ function createMainGUI()
 	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
 	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
 	minBtn.MouseButton1Click:Connect(function()
-		minimizeToButton(sg, panel)
+		minimizeMainGUI(sg, panel)
 	end)
 	
 	local closeBtn = Instance.new("TextButton", titleArea)
@@ -851,21 +857,21 @@ function createMainGUI()
 		if miniButton then miniButton:Destroy() end
 	end)
 	
-	local dragStart, startPos, dragging
+	local dragStart, startPos, draggingPanel
 	titleArea.InputBegan:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
+			draggingPanel = true
 			dragStart = Vector2.new(inp.Position.X, inp.Position.Y)
 			startPos = panel.Position
 		end
 	end)
 	UserInputService.InputChanged:Connect(function(inp)
-		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+		if draggingPanel and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
 			local delta = Vector2.new(inp.Position.X, inp.Position.Y) - dragStart
 			panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
 	end)
-	UserInputService.InputEnded:Connect(function() dragging = false end)
+	UserInputService.InputEnded:Connect(function() draggingPanel = false end)
 	
 	-- Tab bar (scrollable)
 	local tabBarContainer = Instance.new("Frame")
@@ -1113,7 +1119,7 @@ function createMainGUI()
 		return box
 	end
 	
-	-- ===== SHAPES TAB (full implementation) =====
+	-- ===== SHAPES TAB =====
 	local shapesFrame = tabContents["SHAPES"]
 	addSectionLabel(shapesFrame, "SHAPE FORMATIONS (30)", 0, Colors.TEXT_PRIMARY)
 	local shapesScrollingFrame = Instance.new("ScrollingFrame", shapesFrame)
@@ -1555,9 +1561,8 @@ function createMainGUI()
 	addActionBtn(sysFrame, "✕  RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, releaseAll)
 	addActionBtn(sysFrame, "⏻  DESTROY GUI", 12, Colors.STATUS_IDLE, function() releaseAll(); sg:Destroy(); if miniButton then miniButton:Destroy() end end)
 	
-	-- ===== SETTINGS TAB (with working scroll) =====
+	-- ===== SETTINGS TAB (scrollable) =====
 	local settingsFrame = tabContents["SETTINGS"]
-	-- Make the settings frame scrollable
 	local settingsScrollingFrame = Instance.new("ScrollingFrame", settingsFrame)
 	settingsScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
 	settingsScrollingFrame.BackgroundTransparency = 1
@@ -1582,7 +1587,6 @@ function createMainGUI()
 	end
 	settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSettingsCanvas)
 	
-	-- Add content to settingsScrollingFrame instead of directly to settingsFrame
 	addSectionLabel(settingsScrollingFrame, "INTERFACE", 0, Colors.TEXT_PRIMARY)
 	
 	local themeGrid = Instance.new("Frame", settingsScrollingFrame)
@@ -1636,7 +1640,6 @@ function createMainGUI()
 		setTheme("dark")
 	end)
 	
-	-- Initial canvas update
 	task.wait(0.1)
 	updateSettingsCanvas()
 	
