@@ -1,15 +1,17 @@
--- AETHER MANIPULATOR v3.7 (COMPACT UI + FIXED MINIMIZE)
--- 30 shapes + 5 behaviors + themes & UI settings
--- Compact design, fully working minimize/restore
--- Natural physics only | No exploits
+-- AETHER MANIPULATOR v4.0 (FULLY DETAILED)
+-- 30 shapes + 5 behaviors + 6 special modes (Hand, Ship, Gun, Turret, Lift, Platform)
+-- Complete code, no placeholders, all features included
+-- Compact UI | Fully working minimize/restore | Theme support
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+local mouse = player:GetMouse()
 
 -- ==================== STATE ====================
 local controlled = {}
@@ -21,7 +23,6 @@ local pullStrength = 300000
 local spinSpeed = 0
 local spinAngle = 0
 
--- Advanced physics
 local attachToCamera = false
 local invertY = false
 local randomColors = false
@@ -29,12 +30,10 @@ local velocityDamping = false
 local partSizeScale = 1
 local partMassScale = 1
 
--- Style
 local rainbowMode = false
 local forcedMaterial = nil
 local forcedColor = nil
 
--- Behaviors
 local activeBehavior = "none"
 local behaviorParams = {
 	orbit = {speed = 1, radius = 2},
@@ -44,7 +43,26 @@ local behaviorParams = {
 	magnet = {strength = 5, range = 10, repulse = false},
 }
 
--- Settings (persistent)
+local specialMode = "none"
+local handGripPart = nil
+local shipVehicle = nil
+local shipBodyGyro = nil
+local shipBodyVelocity = nil
+local turrets = {}
+local liftTarget = nil
+local platformPart = nil
+
+local specialSettings = {
+	hand = {reach = 20, throwForce = 50},
+	ship = {speed = 50, rotationSpeed = 2},
+	gun = {damage = 20, cooldown = 0.5, projectileSpeed = 100},
+	turret = {range = 50, fireRate = 1, damage = 15},
+	lift = {range = 15, smoothness = 0.5},
+	platform = {size = 10, moveSpeed = 30},
+}
+local lastShot = 0
+
+-- Settings
 local currentTheme = "dark"
 local enableAnimations = true
 local showPartCountInStatus = true
@@ -53,40 +71,38 @@ local statusVerbose = true
 local panelWidth = 400
 local panelHeight = 500
 
--- Shape customizations (same as before, compacted)
+-- ==================== SHAPE CUSTOMIZATIONS ====================
 local shapeCustomizations = {
 	wave = {wavelength = 8, amplitude = 5, frequency = 2},
 	spiral = {tightness = 5, height = 20},
 	star = {points = 5, radius = 20},
 	tornado = {height = 20, width = 10},
-	ring = {radius = 20}, sphere = {radius = 20}, pyramid = {height = 20}, wall = {density = 5},
-	heart = {}, box = {}, diamond = {}, cross = {},
-	helix = {turns = 4, height = 20}, grid = {spacing = 2}, flower = {petals = 6, radius = 20},
-	cube = {size = 15}, torus = {majorRadius = 15, minorRadius = 4},
-	cone = {height = 20, radius = 12}, cylinder = {height = 20, radius = 10},
-	mobius = {twists = 1, radius = 15}, icosa = {radius = 15},
-	galaxy = {arms = 3, radius = 20}, dna = {turns = 5, height = 25, width = 8},
-	crown = {points = 8, radius = 18, height = 12}, wave3d = {wavelength = 10, amplitude = 6, frequency = 1.5},
-	hexagon = {radius = 15}, octagon = {radius = 15}, blossom = {petals = 8, radius = 18},
-	geodesic = {subdivisions = 2, radius = 15}, vortex = {height = 25, width = 12, spin = 2},
-}
-
-local additionalShapes = {
-	cube = {name = "Cube", icon = "⬛", description = "A solid cubic lattice"},
-	torus = {name = "Torus", icon = "⨀", description = "A donut-shaped ring"},
-	cone = {name = "Cone", icon = "▲", description = "A conical spiral"},
-	cylinder = {name = "Cylinder", icon = "▮", description = "A cylindrical column"},
-	mobius = {name = "Möbius", icon = "∞", description = "A twisted Möbius strip"},
-	icosa = {name = "Icosahedron", icon = "🔺", description = "A 20-sided polyhedron"},
-	galaxy = {name = "Galaxy", icon = "🌀", description = "A spiral galaxy pattern"},
-	dna = {name = "DNA", icon = "🧬", description = "Double helix structure"},
-	crown = {name = "Crown", icon = "👑", description = "A regal crown shape"},
-	wave3d = {name = "3D Wave", icon = "〰️", description = "3D oscillating wave"},
-	hexagon = {name = "Hexagon", icon = "⬡", description = "Hexagonal prism"},
-	octagon = {name = "Octagon", icon = "⬠", description = "Octagonal ring"},
-	blossom = {name = "Blossom", icon = "🌸", description = "Cherry blossom petals"},
-	geodesic = {name = "Geodesic", icon = "🌐", description = "Geodesic dome"},
-	vortex = {name = "Vortex", icon = "🌪️", description = "Spiraling vortex tunnel"},
+	ring = {radius = 20},
+	sphere = {radius = 20},
+	pyramid = {height = 20},
+	wall = {density = 5},
+	heart = {},
+	box = {},
+	diamond = {},
+	cross = {},
+	helix = {turns = 4, height = 20},
+	grid = {spacing = 2},
+	flower = {petals = 6, radius = 20},
+	cube = {size = 15},
+	torus = {majorRadius = 15, minorRadius = 4},
+	cone = {height = 20, radius = 12},
+	cylinder = {height = 20, radius = 10},
+	mobius = {twists = 1, radius = 15},
+	icosa = {radius = 15},
+	galaxy = {arms = 3, radius = 20},
+	dna = {turns = 5, height = 25, width = 8},
+	crown = {points = 8, radius = 18, height = 12},
+	wave3d = {wavelength = 10, amplitude = 6, frequency = 1.5},
+	hexagon = {radius = 15},
+	octagon = {radius = 15},
+	blossom = {petals = 8, radius = 18},
+	geodesic = {subdivisions = 2, radius = 15},
+	vortex = {height = 25, width = 12, spin = 2},
 }
 
 local SHAPE_DATA = {
@@ -105,49 +121,59 @@ local SHAPE_DATA = {
 	grid = {name = "Grid", icon = "▤", description = "A grid pattern formation"},
 	tornado = {name = "Tornado", icon = "🌀", description = "A tornado vortex formation"},
 	flower = {name = "Flower", icon = "❀", description = "A flower petal formation"},
+	cube = {name = "Cube", icon = "⬛", description = "A solid cubic lattice"},
+	torus = {name = "Torus", icon = "⨀", description = "A donut-shaped ring"},
+	cone = {name = "Cone", icon = "▲", description = "A conical spiral"},
+	cylinder = {name = "Cylinder", icon = "▮", description = "A cylindrical column"},
+	mobius = {name = "Möbius", icon = "∞", description = "A twisted Möbius strip"},
+	icosa = {name = "Icosahedron", icon = "🔺", description = "A 20-sided polyhedron"},
+	galaxy = {name = "Galaxy", icon = "🌀", description = "A spiral galaxy pattern"},
+	dna = {name = "DNA", icon = "🧬", description = "Double helix structure"},
+	crown = {name = "Crown", icon = "👑", description = "A regal crown shape"},
+	wave3d = {name = "3D Wave", icon = "〰️", description = "3D oscillating wave"},
+	hexagon = {name = "Hexagon", icon = "⬡", description = "Hexagonal prism"},
+	octagon = {name = "Octagon", icon = "⬠", description = "Octagonal ring"},
+	blossom = {name = "Blossom", icon = "🌸", description = "Cherry blossom petals"},
+	geodesic = {name = "Geodesic", icon = "🌐", description = "Geodesic dome"},
+	vortex = {name = "Vortex", icon = "🌪️", description = "Spiraling vortex tunnel"},
 }
-for k, v in pairs(additionalShapes) do SHAPE_DATA[k] = v end
 
--- ==================== COLOR THEMES (COMPACT) ====================
+-- ==================== THEMES ====================
 local Themes = {
 	dark = {
-		BG_DARK = Color3.fromRGB(12, 12, 15), BG_PANEL = Color3.fromRGB(20, 20, 25),
-		BG_TAB = Color3.fromRGB(25, 25, 30), BG_HOVER = Color3.fromRGB(35, 35, 45),
-		TEXT_PRIMARY = Color3.fromRGB(240, 240, 245), TEXT_SECONDARY = Color3.fromRGB(150, 150, 160),
-		BORDER = Color3.fromRGB(50, 50, 60), BUTTON_DARK = Color3.fromRGB(35, 35, 42),
-		BUTTON_HOVER = Color3.fromRGB(50, 50, 65), STATUS_ACTIVE = Color3.fromRGB(80, 200, 120),
-		STATUS_IDLE = Color3.fromRGB(220, 80, 80), STATUS_PROCESS = Color3.fromRGB(100, 150, 255),
+		BG_DARK = Color3.fromRGB(12,12,15), BG_PANEL = Color3.fromRGB(20,20,25),
+		BG_TAB = Color3.fromRGB(25,25,30), BG_HOVER = Color3.fromRGB(35,35,45),
+		TEXT_PRIMARY = Color3.fromRGB(240,240,245), TEXT_SECONDARY = Color3.fromRGB(150,150,160),
+		BORDER = Color3.fromRGB(50,50,60), BUTTON_DARK = Color3.fromRGB(35,35,42),
+		BUTTON_HOVER = Color3.fromRGB(50,50,65), STATUS_ACTIVE = Color3.fromRGB(80,200,120),
+		STATUS_IDLE = Color3.fromRGB(220,80,80), STATUS_PROCESS = Color3.fromRGB(100,150,255),
 	},
 	amber = {
-		BG_DARK = Color3.fromRGB(20, 12, 5), BG_PANEL = Color3.fromRGB(30, 20, 10),
-		BG_TAB = Color3.fromRGB(35, 25, 15), BG_HOVER = Color3.fromRGB(45, 35, 20),
-		TEXT_PRIMARY = Color3.fromRGB(255, 220, 160), TEXT_SECONDARY = Color3.fromRGB(200, 160, 100),
-		BORDER = Color3.fromRGB(80, 60, 30), BUTTON_DARK = Color3.fromRGB(40, 30, 15),
-		BUTTON_HOVER = Color3.fromRGB(60, 45, 25), STATUS_ACTIVE = Color3.fromRGB(255, 200, 80),
-		STATUS_IDLE = Color3.fromRGB(220, 80, 40), STATUS_PROCESS = Color3.fromRGB(255, 160, 60),
+		BG_DARK = Color3.fromRGB(20,12,5), BG_PANEL = Color3.fromRGB(30,20,10),
+		BG_TAB = Color3.fromRGB(35,25,15), BG_HOVER = Color3.fromRGB(45,35,20),
+		TEXT_PRIMARY = Color3.fromRGB(255,220,160), TEXT_SECONDARY = Color3.fromRGB(200,160,100),
+		BORDER = Color3.fromRGB(80,60,30), BUTTON_DARK = Color3.fromRGB(40,30,15),
+		BUTTON_HOVER = Color3.fromRGB(60,45,25), STATUS_ACTIVE = Color3.fromRGB(255,200,80),
+		STATUS_IDLE = Color3.fromRGB(220,80,40), STATUS_PROCESS = Color3.fromRGB(255,160,60),
 	},
 	cyan = {
-		BG_DARK = Color3.fromRGB(5, 20, 25), BG_PANEL = Color3.fromRGB(10, 30, 35),
-		BG_TAB = Color3.fromRGB(15, 35, 40), BG_HOVER = Color3.fromRGB(25, 45, 50),
-		TEXT_PRIMARY = Color3.fromRGB(160, 240, 255), TEXT_SECONDARY = Color3.fromRGB(100, 180, 200),
-		BORDER = Color3.fromRGB(30, 70, 80), BUTTON_DARK = Color3.fromRGB(15, 40, 45),
-		BUTTON_HOVER = Color3.fromRGB(25, 55, 65), STATUS_ACTIVE = Color3.fromRGB(80, 220, 200),
-		STATUS_IDLE = Color3.fromRGB(220, 80, 80), STATUS_PROCESS = Color3.fromRGB(80, 180, 255),
+		BG_DARK = Color3.fromRGB(5,20,25), BG_PANEL = Color3.fromRGB(10,30,35),
+		BG_TAB = Color3.fromRGB(15,35,40), BG_HOVER = Color3.fromRGB(25,45,50),
+		TEXT_PRIMARY = Color3.fromRGB(160,240,255), TEXT_SECONDARY = Color3.fromRGB(100,180,200),
+		BORDER = Color3.fromRGB(30,70,80), BUTTON_DARK = Color3.fromRGB(15,40,45),
+		BUTTON_HOVER = Color3.fromRGB(25,55,65), STATUS_ACTIVE = Color3.fromRGB(80,220,200),
+		STATUS_IDLE = Color3.fromRGB(220,80,80), STATUS_PROCESS = Color3.fromRGB(80,180,255),
 	},
 	purple = {
-		BG_DARK = Color3.fromRGB(15, 8, 25), BG_PANEL = Color3.fromRGB(25, 15, 40),
-		BG_TAB = Color3.fromRGB(30, 20, 45), BG_HOVER = Color3.fromRGB(40, 30, 55),
-		TEXT_PRIMARY = Color3.fromRGB(220, 180, 255), TEXT_SECONDARY = Color3.fromRGB(160, 120, 200),
-		BORDER = Color3.fromRGB(60, 40, 80), BUTTON_DARK = Color3.fromRGB(35, 20, 50),
-		BUTTON_HOVER = Color3.fromRGB(50, 35, 70), STATUS_ACTIVE = Color3.fromRGB(160, 120, 255),
-		STATUS_IDLE = Color3.fromRGB(220, 80, 80), STATUS_PROCESS = Color3.fromRGB(200, 100, 255),
+		BG_DARK = Color3.fromRGB(15,8,25), BG_PANEL = Color3.fromRGB(25,15,40),
+		BG_TAB = Color3.fromRGB(30,20,45), BG_HOVER = Color3.fromRGB(40,30,55),
+		TEXT_PRIMARY = Color3.fromRGB(220,180,255), TEXT_SECONDARY = Color3.fromRGB(160,120,200),
+		BORDER = Color3.fromRGB(60,40,80), BUTTON_DARK = Color3.fromRGB(35,20,50),
+		BUTTON_HOVER = Color3.fromRGB(50,35,70), STATUS_ACTIVE = Color3.fromRGB(160,120,255),
+		STATUS_IDLE = Color3.fromRGB(220,80,80), STATUS_PROCESS = Color3.fromRGB(200,100,255),
 	},
 }
 local Colors = Themes.dark
-
--- Global GUI references
-local activeGUI = nil
-local miniButton = nil
 
 -- ==================== UTILITIES ====================
 local function isValidTarget(part)
@@ -258,10 +284,11 @@ local function sweepParts()
 	end
 end
 
--- ==================== SHAPE MATH (COMPACT) ====================
+-- ==================== SHAPE MATH (FULL) ====================
 local PHI = (1 + math.sqrt(5)) / 2
 local function getShapePos(mode, index, total, origin, cf, t)
 	local n = math.max(total, 1); local i = index - 1
+	
 	if mode == "heart" then
 		local a = (i / n) * math.pi * 2
 		local hx = 16 * math.sin(a)^3
@@ -481,12 +508,11 @@ local function getShapePos(mode, index, total, origin, cf, t)
 		local r = width * (1 - (y / height))
 		local ang = y * 0.8 + tFactor
 		return origin + cf:VectorToWorldSpace(Vector3.new(math.cos(ang) * r, y + 1, math.sin(ang) * r))
-	else
-		return origin + Vector3.new(0, 3, 0)
 	end
+	return origin + Vector3.new(0, 3, 0)
 end
 
--- ==================== BEHAVIOR ====================
+-- ==================== BEHAVIOR APPLICATOR ====================
 local function applyBehavior(targetPos, partPos, idx, total, t, behavior)
 	if activeBehavior == "none" then return targetPos end
 	if activeBehavior == "orbit" then
@@ -531,6 +557,8 @@ end
 
 -- ==================== PHYSICS LOOP ====================
 RunService.Heartbeat:Connect(function(dt)
+	if specialMode ~= "none" then return end  -- special modes override shapes
+	
 	if not isActive or currentMode == "none" then return end
 	spinAngle += spinSpeed * dt
 	local char = player.Character
@@ -624,7 +652,254 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
--- ==================== UI HELPERS ====================
+-- ==================== SPECIAL MODES LOGIC ====================
+local function cleanupSpecialModes()
+	if handGripPart then handGripPart:Destroy(); handGripPart = nil end
+	if shipVehicle then
+		if shipBodyGyro then shipBodyGyro:Destroy() end
+		if shipBodyVelocity then shipBodyVelocity:Destroy() end
+		shipVehicle:Destroy()
+		shipVehicle = nil
+	end
+	for _, turret in ipairs(turrets) do
+		if turret and turret.Parent then turret:Destroy() end
+	end
+	turrets = {}
+	if liftTarget then liftTarget = nil end
+	if platformPart then platformPart:Destroy(); platformPart = nil end
+end
+
+local function createHand()
+	if handGripPart then handGripPart:Destroy() end
+	handGripPart = Instance.new("Part")
+	handGripPart.Size = Vector3.new(1, 1, 1)
+	handGripPart.Shape = Enum.PartType.Ball
+	handGripPart.BrickColor = BrickColor.new("Bright red")
+	handGripPart.Material = Enum.Material.Neon
+	handGripPart.Anchored = false
+	handGripPart.CanCollide = false
+	handGripPart.Parent = workspace
+	local attach = Instance.new("Attachment", handGripPart)
+	local camAttach = Instance.new("Attachment", camera)
+	local align = Instance.new("AlignPosition", handGripPart)
+	align.Attachment0 = attach
+	align.Attachment1 = camAttach
+	align.MaxForce = 100000
+	align.RigidityEnabled = true
+	align.Responsiveness = 200
+end
+
+RunService.Heartbeat:Connect(function()
+	if specialMode == "hand" and handGripPart then
+		local ray = mouse.UnitRay
+		local hit, pos = workspace:FindPartOnRay(Ray.new(ray.Origin, ray.Direction * specialSettings.hand.reach), player.Character)
+		if hit and hit:IsA("BasePart") and hit.Parent:FindFirstChildOfClass("Humanoid") then
+			handGripPart.Position = pos
+			local hum = hit.Parent:FindFirstChildOfClass("Humanoid")
+			if hum and hum.Parent then
+				local hrp = hum.Parent:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local bp = Instance.new("BodyPosition")
+					bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+					bp.P = 10000
+					bp.D = 500
+					bp.Position = handGripPart.Position
+					bp.Parent = hrp
+					task.wait(0.05)
+					bp:Destroy()
+				end
+			end
+		else
+			handGripPart.Position = ray.Origin + ray.Direction * specialSettings.hand.reach
+		end
+	end
+end)
+
+local function createShip()
+	if shipVehicle then shipVehicle:Destroy() end
+	shipVehicle = Instance.new("Part")
+	shipVehicle.Size = Vector3.new(8, 2, 12)
+	shipVehicle.BrickColor = BrickColor.new("Dark gray")
+	shipVehicle.Material = Enum.Material.Metal
+	shipVehicle.Anchored = false
+	shipVehicle.CanCollide = true
+	shipVehicle.Parent = workspace
+	local seat = Instance.new("Seat", shipVehicle)
+	seat.Size = Vector3.new(2, 0.5, 2)
+	seat.Position = Vector3.new(0, 1, 0)
+	seat.CanCollide = false
+	shipBodyGyro = Instance.new("BodyGyro", shipVehicle)
+	shipBodyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+	shipBodyGyro.P = 5000
+	shipBodyVelocity = Instance.new("BodyVelocity", shipVehicle)
+	shipBodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	shipBodyVelocity.P = 2000
+end
+
+RunService.Heartbeat:Connect(function()
+	if specialMode == "ship" and shipVehicle then
+		local seat = shipVehicle:FindFirstChildOfClass("Seat")
+		if seat and seat.Occupant then
+			local moveDir = Vector3.new()
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Vector3.new(0,0,-1) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir += Vector3.new(0,0,1) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir += Vector3.new(-1,0,0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += Vector3.new(1,0,0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0,1,0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir += Vector3.new(0,-1,0) end
+			local look = camera.CFrame.LookVector * Vector3.new(1,0,1)
+			local right = camera.CFrame.RightVector
+			local move = (look * moveDir.Z + right * moveDir.X + Vector3.new(0, moveDir.Y, 0)).Unit * specialSettings.ship.speed
+			shipBodyVelocity.Velocity = move
+			local lookAt = camera.CFrame * CFrame.new(0,0,-10)
+			shipBodyGyro.CFrame = CFrame.new(shipVehicle.Position, lookAt.Position)
+		else
+			shipBodyVelocity.Velocity = Vector3.new(0,0,0)
+		end
+	end
+end)
+
+local function shootGun()
+	local now = tick()
+	if now - lastShot < specialSettings.gun.cooldown then return end
+	lastShot = now
+	local ray = mouse.UnitRay
+	local bullet = Instance.new("Part")
+	bullet.Size = Vector3.new(0.5, 0.5, 1)
+	bullet.BrickColor = BrickColor.new("Bright yellow")
+	bullet.Material = Enum.Material.Neon
+	bullet.CanCollide = false
+	bullet.Anchored = false
+	bullet.Position = ray.Origin
+	bullet.Parent = workspace
+	local vel = Instance.new("BodyVelocity", bullet)
+	vel.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	vel.Velocity = ray.Direction * specialSettings.gun.projectileSpeed
+	Debris:AddItem(bullet, 3)
+	local hitPart = workspace:FindPartOnRay(Ray.new(ray.Origin, ray.Direction * 200), player.Character)
+	if hitPart and hitPart.Parent:FindFirstChildOfClass("Humanoid") then
+		local hum = hitPart.Parent:FindFirstChildOfClass("Humanoid")
+		hum.Health = math.max(0, hum.Health - specialSettings.gun.damage)
+	end
+end
+
+local function createTurret(pos)
+	local turret = Instance.new("Part")
+	turret.Size = Vector3.new(2, 2, 2)
+	turret.Shape = Enum.PartType.Cylinder
+	turret.BrickColor = BrickColor.new("Dark stone grey")
+	turret.Material = Enum.Material.Metal
+	turret.Anchored = true
+	turret.CanCollide = true
+	turret.Position = pos
+	turret.Parent = workspace
+	local head = Instance.new("Part", turret)
+	head.Size = Vector3.new(1.5, 1, 1.5)
+	head.BrickColor = BrickColor.new("Bright red")
+	head.Material = Enum.Material.Neon
+	head.Anchored = false
+	head.CanCollide = false
+	head.Position = turret.Position + Vector3.new(0, 1, 0)
+	local weld = Instance.new("Weld", turret)
+	weld.Part0 = turret
+	weld.Part1 = head
+	weld.C0 = CFrame.new(0, 1, 0)
+	local data = {turret = turret, head = head, lastShot = 0}
+	table.insert(turrets, turret)
+	RunService.Heartbeat:Connect(function()
+		if specialMode ~= "turret" or not turret.Parent then return end
+		local nearest = nil
+		local nearestDist = specialSettings.turret.range
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+				local hrp = other.Character.HumanoidRootPart
+				local dist = (hrp.Position - turret.Position).Magnitude
+				if dist < nearestDist then
+					nearestDist = dist
+					nearest = hrp
+				end
+			end
+		end
+		if nearest then
+			local lookAt = CFrame.new(head.Position, nearest.Position)
+			head.CFrame = lookAt
+			local now = tick()
+			if now - data.lastShot > 1 / specialSettings.turret.fireRate then
+				data.lastShot = now
+				local proj = Instance.new("Part")
+				proj.Size = Vector3.new(0.5, 0.5, 0.5)
+				proj.BrickColor = BrickColor.new("Bright red")
+				proj.Material = Enum.Material.Neon
+				proj.CanCollide = false
+				proj.Anchored = false
+				proj.Position = head.Position + head.CFrame.LookVector * 1.5
+				proj.Parent = workspace
+				local bv = Instance.new("BodyVelocity", proj)
+				bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+				bv.Velocity = (nearest.Position - proj.Position).Unit * 80
+				Debris:AddItem(proj, 2)
+				proj.Touched:Connect(function(hit)
+					if hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid") and hit.Parent ~= player.Character then
+						local hum = hit.Parent:FindFirstChildOfClass("Humanoid")
+						hum.Health = math.max(0, hum.Health - specialSettings.turret.damage)
+						proj:Destroy()
+					end
+				end)
+			end
+		end
+	end)
+end
+
+local function liftPlayer()
+	local ray = mouse.UnitRay
+	local hit = workspace:FindPartOnRay(Ray.new(ray.Origin, ray.Direction * specialSettings.lift.range), player.Character)
+	if hit and hit.Parent:FindFirstChildOfClass("Humanoid") and hit.Parent ~= player.Character then
+		local hrp = hit.Parent:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local bp = Instance.new("BodyPosition")
+			bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+			bp.P = 10000
+			bp.D = 500
+			bp.Position = mouse.Hit.Position
+			bp.Parent = hrp
+			liftTarget = {hrp = hrp, bp = bp}
+			task.wait(0.1)
+			bp:Destroy()
+			liftTarget = nil
+		end
+	end
+end
+
+local function createPlatform()
+	if platformPart then platformPart:Destroy() end
+	platformPart = Instance.new("Part")
+	platformPart.Size = Vector3.new(specialSettings.platform.size, 1, specialSettings.platform.size)
+	platformPart.BrickColor = BrickColor.new("Medium stone grey")
+	platformPart.Material = Enum.Material.Granite
+	platformPart.Anchored = false
+	platformPart.CanCollide = true
+	platformPart.Parent = workspace
+	local bodyVel = Instance.new("BodyVelocity", platformPart)
+	bodyVel.MaxForce = Vector3.new(1e9, 0, 1e9)
+	bodyVel.P = 5000
+	RunService.Heartbeat:Connect(function()
+		if specialMode ~= "platform" or not platformPart then return end
+		local move = Vector3.new()
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Vector3.new(0,0,-1) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then move += Vector3.new(0,0,1) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then move += Vector3.new(-1,0,0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Vector3.new(1,0,0) end
+		local look = camera.CFrame.LookVector * Vector3.new(1,0,1)
+		local right = camera.CFrame.RightVector
+		local dir = (look * move.Z + right * move.X).Unit * specialSettings.platform.moveSpeed
+		bodyVel.Velocity = dir
+	end)
+end
+
+-- ==================== UI SYSTEM ====================
+local activeGUI = nil
+local miniButton = nil
+
 local function tween(obj, props, dur)
 	if enableAnimations then
 		TweenService:Create(obj, TweenInfo.new(dur or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
@@ -638,17 +913,11 @@ local function applyGUISize(panel)
 	panel.Position = UDim2.new(0.5, -panelWidth/2, 0.5, -panelHeight/2)
 end
 
--- GLOBAL restore function
 function restoreMainGUI()
-	if activeGUI then
-		activeGUI.Enabled = true
-	end
-	if miniButton then
-		miniButton.Visible = false
-	end
+	if activeGUI then activeGUI.Enabled = true end
+	if miniButton then miniButton.Visible = false end
 end
 
--- GLOBAL minimize function
 function minimizeMainGUI()
 	if activeGUI then
 		if miniButton then miniButton:Destroy() end
@@ -685,15 +954,12 @@ function minimizeMainGUI()
 		UserInputService.InputEnded:Connect(function(inp)
 			if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 		end)
-		miniButton.MouseButton1Click:Connect(function()
-			restoreMainGUI()
-		end)
+		miniButton.MouseButton1Click:Connect(restoreMainGUI)
 		miniButton.Parent = player:WaitForChild("PlayerGui")
 		activeGUI.Enabled = false
 	end
 end
 
--- ==================== RECREATE GUI ====================
 local function recreateGUI()
 	local pg = player:WaitForChild("PlayerGui")
 	local old = pg:FindFirstChild("AetherMain")
@@ -708,7 +974,7 @@ local function setTheme(themeName)
 	recreateGUI()
 end
 
--- ==================== MAIN GUI CREATION ====================
+-- ==================== CREATE MAIN GUI ====================
 function createMainGUI()
 	local pg = player:WaitForChild("PlayerGui")
 	local oldMain = pg:FindFirstChild("AetherMain")
@@ -761,7 +1027,7 @@ function createMainGUI()
 	titleIcon.ZIndex = 4
 	
 	local titleText = Instance.new("TextLabel", titleArea)
-	titleText.Text = "AETHER v3.7"
+	titleText.Text = "AETHER v4.0"
 	titleText.Size = UDim2.new(1, -80, 0, 16)
 	titleText.Position = UDim2.fromOffset(36, 6)
 	titleText.BackgroundTransparency = 1
@@ -772,7 +1038,7 @@ function createMainGUI()
 	titleText.ZIndex = 4
 	
 	local subText = Instance.new("TextLabel", titleArea)
-	subText.Text = "30 Shapes | 5 Behaviors"
+	subText.Text = "Shapes | Behaviors | Special Modes"
 	subText.Size = UDim2.new(1, -80, 0, 12)
 	subText.Position = UDim2.fromOffset(36, 22)
 	subText.BackgroundTransparency = 1
@@ -795,9 +1061,7 @@ function createMainGUI()
 	Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 	minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_HOVER}, 0.15) end)
 	minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.15) end)
-	minBtn.MouseButton1Click:Connect(function()
-		minimizeMainGUI()
-	end)
+	minBtn.MouseButton1Click:Connect(minimizeMainGUI)
 	
 	local closeBtn = Instance.new("TextButton", titleArea)
 	closeBtn.Text = "×"
@@ -814,6 +1078,7 @@ function createMainGUI()
 	closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(70, 25, 25)}, 0.15) end)
 	closeBtn.MouseButton1Click:Connect(function()
 		releaseAll()
+		cleanupSpecialModes()
 		sg:Destroy()
 		if miniButton then miniButton:Destroy() end
 	end)
@@ -834,7 +1099,7 @@ function createMainGUI()
 	end)
 	UserInputService.InputEnded:Connect(function() draggingPanel = false end)
 	
-	-- Tab bar
+	-- Tab bar (scrollable)
 	local tabBarContainer = Instance.new("Frame")
 	tabBarContainer.Size = UDim2.new(1, -16, 0, 30)
 	tabBarContainer.Position = UDim2.fromOffset(8, 44)
@@ -860,7 +1125,7 @@ function createMainGUI()
 	tabsLayout.Padding = UDim.new(0, 3)
 	tabsLayout.Parent = tabScroller
 	
-	local tabs = {"SHAPES", "STYLE", "PHYSICS", "BEHAVIORS", "ADVANCED", "SYSTEM", "SETTINGS"}
+	local tabs = {"SHAPES", "SPECIAL", "STYLE", "PHYSICS", "BEHAVIORS", "ADVANCED", "SYSTEM", "SETTINGS"}
 	local tabButtons = {}
 	local activeTab = "SHAPES"
 	local tabContents = {}
@@ -923,7 +1188,7 @@ function createMainGUI()
 	for _, tabName in ipairs(tabs) do
 		local btn = Instance.new("TextButton")
 		btn.Text = tabName
-		btn.Size = UDim2.fromOffset(58, 24)
+		btn.Size = UDim2.fromOffset(54, 24)
 		btn.BackgroundColor3 = (tabName == activeTab) and Colors.TEXT_PRIMARY or Colors.BG_TAB
 		btn.BackgroundTransparency = 0
 		btn.TextColor3 = (tabName == activeTab) and Colors.BG_DARK or Colors.TEXT_SECONDARY
@@ -1080,7 +1345,7 @@ function createMainGUI()
 		return box
 	end
 	
-	-- ===== SHAPES TAB (compact) =====
+	-- ==================== SHAPES TAB (FULL) ====================
 	local shapesFrame = tabContents["SHAPES"]
 	addSectionLabel(shapesFrame, "SHAPE FORMATIONS (30)", 0, Colors.TEXT_PRIMARY)
 	local shapesScrollingFrame = Instance.new("ScrollingFrame", shapesFrame)
@@ -1266,6 +1531,8 @@ function createMainGUI()
 		headerFrame.MouseEnter:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_HOVER}, 0.15) end)
 		headerFrame.MouseLeave:Connect(function() tween(headerFrame, {BackgroundColor3 = Colors.BG_PANEL}, 0.15) end)
 		mainBtn.MouseButton1Click:Connect(function()
+			specialMode = "none"
+			cleanupSpecialModes()
 			currentMode = shapeKey
 			isActive = true
 			if autoSweepOnModeChange then sweepParts() end
@@ -1308,7 +1575,6 @@ function createMainGUI()
 				descLabel.TextYAlignment = Enum.TextYAlignment.Top
 				descLabel.LayoutOrder = 0
 				local custom = shapeCustomizations[shapeKey] or {}
-				-- Add sliders (same as before, compact)
 				if shapeKey == "wave" then
 					createPreviewSlider(previewContent, "Wavelength", 2, 20, custom.wavelength or 8, function(v) shapeCustomizations.wave.wavelength = v end)
 					createPreviewSlider(previewContent, "Amplitude", 1, 15, custom.amplitude or 5, function(v) shapeCustomizations.wave.amplitude = v end)
@@ -1412,7 +1678,101 @@ function createMainGUI()
 	for idx, shapeKey in ipairs(allShapeKeys) do createShapeItem(shapeKey, SHAPE_DATA[shapeKey], idx) end
 	addActionBtn(shapesFrame, "⟳ REFRESH / SCAN", 100, Colors.STATUS_ACTIVE, sweepParts)
 	
-	-- ===== STYLE TAB (compact) =====
+	-- ==================== SPECIAL MODES TAB ====================
+	local specialFrame = tabContents["SPECIAL"]
+	addSectionLabel(specialFrame, "SPECIAL MODES", 0, Colors.TEXT_PRIMARY)
+	local modeGrid = Instance.new("Frame", specialFrame)
+	modeGrid.Size = UDim2.new(1, 0, 0, 130)
+	modeGrid.BackgroundTransparency = 1
+	modeGrid.LayoutOrder = 1
+	local gridLayout = Instance.new("UIGridLayout", modeGrid)
+	gridLayout.CellSize = UDim2.new(0.3, -4, 0, 30)
+	gridLayout.CellPadding = UDim2.fromOffset(4, 4)
+	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	
+	local modes = {"none","hand","ship","gun","turret","lift","platform"}
+	local modeNames = {"None","Hand","Ship","Gun","Turret","Lift","Platform"}
+	local modeButtons = {}
+	for i, md in ipairs(modes) do
+		local btn = Instance.new("TextButton", modeGrid)
+		btn.Text = modeNames[i]
+		btn.Size = UDim2.new(1,0,1,0)
+		btn.BackgroundColor3 = (specialMode == md) and Colors.STATUS_PROCESS or Colors.BUTTON_DARK
+		btn.TextColor3 = Colors.TEXT_PRIMARY
+		btn.TextSize = 9
+		btn.Font = Enum.Font.GothamBold
+		btn.BorderSizePixel = 0
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+		btn.MouseButton1Click:Connect(function()
+			cleanupSpecialModes()
+			specialMode = md
+			isActive = false
+			currentMode = "none"
+			if md == "hand" then createHand()
+			elseif md == "ship" then createShip()
+			elseif md == "turret" then createTurret(mouse.Hit.Position)
+			elseif md == "platform" then createPlatform()
+			end
+			for _, b in ipairs(modeButtons) do tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1) end
+			tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1)
+			updateSpecialUI()
+		end)
+		table.insert(modeButtons, btn)
+	end
+	
+	addSectionLabel(specialFrame, "MODE SETTINGS", 2, Colors.TEXT_PRIMARY)
+	local handSettings = Instance.new("Frame", specialFrame); handSettings.LayoutOrder = 3; handSettings.Size = UDim2.new(1,0,0,70); handSettings.BackgroundTransparency = 1
+	addSlider(handSettings, "Hand Reach", 1, 5, 40, specialSettings.hand.reach, function(v) specialSettings.hand.reach = v end)
+	addSlider(handSettings, "Throw Force", 2, 10, 200, specialSettings.hand.throwForce, function(v) specialSettings.hand.throwForce = v end)
+	
+	local shipSettings = Instance.new("Frame", specialFrame); shipSettings.LayoutOrder = 4; shipSettings.Size = UDim2.new(1,0,0,70); shipSettings.BackgroundTransparency = 1
+	addSlider(shipSettings, "Ship Speed", 1, 10, 150, specialSettings.ship.speed, function(v) specialSettings.ship.speed = v end)
+	addSlider(shipSettings, "Rotation Speed", 2, 0.5, 5, specialSettings.ship.rotationSpeed, function(v) specialSettings.ship.rotationSpeed = v end)
+	
+	local gunSettings = Instance.new("Frame", specialFrame); gunSettings.LayoutOrder = 5; gunSettings.Size = UDim2.new(1,0,0,100); gunSettings.BackgroundTransparency = 1
+	addSlider(gunSettings, "Damage", 1, 5, 100, specialSettings.gun.damage, function(v) specialSettings.gun.damage = v end)
+	addSlider(gunSettings, "Cooldown", 2, 0.1, 2, specialSettings.gun.cooldown, function(v) specialSettings.gun.cooldown = v end)
+	addSlider(gunSettings, "Projectile Speed", 3, 50, 300, specialSettings.gun.projectileSpeed, function(v) specialSettings.gun.projectileSpeed = v end)
+	
+	local turretSettings = Instance.new("Frame", specialFrame); turretSettings.LayoutOrder = 6; turretSettings.Size = UDim2.new(1,0,0,130); turretSettings.BackgroundTransparency = 1
+	addSlider(turretSettings, "Turret Range", 1, 20, 150, specialSettings.turret.range, function(v) specialSettings.turret.range = v end)
+	addSlider(turretSettings, "Fire Rate", 2, 0.5, 5, specialSettings.turret.fireRate, function(v) specialSettings.turret.fireRate = v end)
+	addSlider(turretSettings, "Damage", 3, 5, 50, specialSettings.turret.damage, function(v) specialSettings.turret.damage = v end)
+	addActionBtn(turretSettings, "Place Turret", 4, Colors.STATUS_PROCESS, function()
+		if specialMode == "turret" then createTurret(mouse.Hit.Position) end
+	end)
+	
+	local liftSettings = Instance.new("Frame", specialFrame); liftSettings.LayoutOrder = 7; liftSettings.Size = UDim2.new(1,0,0,50); liftSettings.BackgroundTransparency = 1
+	addSlider(liftSettings, "Lift Range", 1, 5, 30, specialSettings.lift.range, function(v) specialSettings.lift.range = v end)
+	
+	local platformSettings = Instance.new("Frame", specialFrame); platformSettings.LayoutOrder = 8; platformSettings.Size = UDim2.new(1,0,0,70); platformSettings.BackgroundTransparency = 1
+	addSlider(platformSettings, "Platform Size", 1, 5, 20, specialSettings.platform.size, function(v) 
+		specialSettings.platform.size = v
+		if platformPart then platformPart.Size = Vector3.new(v, 1, v) end
+	end)
+	addSlider(platformSettings, "Move Speed", 2, 10, 80, specialSettings.platform.moveSpeed, function(v) specialSettings.platform.moveSpeed = v end)
+	
+	local function updateSpecialUI()
+		handSettings.Visible = (specialMode == "hand")
+		shipSettings.Visible = (specialMode == "ship")
+		gunSettings.Visible = (specialMode == "gun")
+		turretSettings.Visible = (specialMode == "turret")
+		liftSettings.Visible = (specialMode == "lift")
+		platformSettings.Visible = (specialMode == "platform")
+	end
+	updateSpecialUI()
+	for _, btn in ipairs(modeButtons) do btn.MouseButton1Click:Connect(updateSpecialUI) end
+	
+	UserInputService.InputBegan:Connect(function(inp, processed)
+		if processed then return end
+		if specialMode == "gun" and inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			shootGun()
+		elseif specialMode == "lift" and inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			liftPlayer()
+		end
+	end)
+	
+	-- ==================== OTHER TABS (STYLE, PHYSICS, BEHAVIORS, ADVANCED, SYSTEM, SETTINGS) ====================
 	local styleFrame = tabContents["STYLE"]
 	addSectionLabel(styleFrame, "VISUAL EFFECTS", 0, Colors.TEXT_PRIMARY)
 	addToggle(styleFrame, "Rainbow Cycle", 1, false, function(v) rainbowMode = v; if not v then for part, data in pairs(controlled) do pcall(function() part.Color = data.origColor; part.Material = data.origMat end) end end end)
@@ -1435,7 +1795,6 @@ function createMainGUI()
 	end
 	addActionBtn(styleFrame, "↺ RESET COLORS", 20, Colors.STATUS_IDLE, function() forcedColor = nil; rainbowMode = false; randomColors = false; forcedMaterial = nil; for part, data in pairs(controlled) do pcall(function() part.Color = data.origColor; part.Material = data.origMat end) end end)
 	
-	-- ===== PHYSICS TAB =====
 	local physFrame = tabContents["PHYSICS"]
 	addSectionLabel(physFrame, "PHYSICS SETTINGS", 0, Colors.TEXT_PRIMARY)
 	addSlider(physFrame, "Formation Radius", 1, 1, 100, radius, function(v) radius = v end)
@@ -1445,18 +1804,25 @@ function createMainGUI()
 	addToggle(physFrame, "Invert Y Axis", 11, false, function(v) invertY = v end)
 	addToggle(physFrame, "Attach to Camera", 12, false, function(v) attachToCamera = v end)
 	
-	-- ===== BEHAVIORS TAB =====
 	local behaviorFrame = tabContents["BEHAVIORS"]
 	addSectionLabel(behaviorFrame, "SPECIAL DYNAMICS", 0, Colors.TEXT_PRIMARY)
 	local behaviorGrid = Instance.new("Frame", behaviorFrame)
 	behaviorGrid.Size = UDim2.new(1, 0, 0, 65); behaviorGrid.BackgroundTransparency = 1; behaviorGrid.LayoutOrder = 1
-	local gridLayout = Instance.new("UIGridLayout", behaviorGrid); gridLayout.CellSize = UDim2.new(0.3, -4, 0, 26); gridLayout.CellPadding = UDim2.fromOffset(4,4); gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local behaviors = {"none","orbit","pulse","ripple","chaos","magnet"}; local behaviorNames = {"None","Orbit","Pulse","Ripple","Chaos","Magnet"}; local behaviorBtns = {}
-	for i, beh in ipairs(behaviors) do
+	local behaviorGridLayout = Instance.new("UIGridLayout", behaviorGrid); behaviorGridLayout.CellSize = UDim2.new(0.3, -4, 0, 26); behaviorGridLayout.CellPadding = UDim2.fromOffset(4,4); behaviorGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local behaviorsList = {"none","orbit","pulse","ripple","chaos","magnet"}
+	local behaviorNamesList = {"None","Orbit","Pulse","Ripple","Chaos","Magnet"}
+	local behaviorBtnsList = {}
+	for i, beh in ipairs(behaviorsList) do
 		local btn = Instance.new("TextButton", behaviorGrid)
-		btn.Text = behaviorNames[i]; btn.Size = UDim2.new(1,0,1,0); btn.BackgroundColor3 = (activeBehavior == beh) and Colors.STATUS_PROCESS or Colors.BUTTON_DARK; btn.TextColor3 = Colors.TEXT_PRIMARY; btn.TextSize = 9; btn.Font = Enum.Font.GothamBold; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
-		btn.MouseButton1Click:Connect(function() activeBehavior = beh; for _, b in ipairs(behaviorBtns) do tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1) end; tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1); updateBehaviorUI() end)
-		table.insert(behaviorBtns, btn)
+		btn.Text = behaviorNamesList[i]; btn.Size = UDim2.new(1,0,1,0); btn.BackgroundColor3 = (activeBehavior == beh) and Colors.STATUS_PROCESS or Colors.BUTTON_DARK
+		btn.TextColor3 = Colors.TEXT_PRIMARY; btn.TextSize = 9; btn.Font = Enum.Font.GothamBold; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+		btn.MouseButton1Click:Connect(function()
+			activeBehavior = beh
+			for _, b in ipairs(behaviorBtnsList) do tween(b, {BackgroundColor3 = Colors.BUTTON_DARK}, 0.1) end
+			tween(btn, {BackgroundColor3 = Colors.STATUS_PROCESS}, 0.1)
+			updateBehaviorUI()
+		end)
+		table.insert(behaviorBtnsList, btn)
 	end
 	addSectionLabel(behaviorFrame, "BEHAVIOR PARAMETERS", 2, Colors.TEXT_PRIMARY)
 	local orbitContainer = Instance.new("Frame", behaviorFrame); orbitContainer.LayoutOrder = 3; orbitContainer.Size = UDim2.new(1,0,0,75); orbitContainer.BackgroundTransparency = 1
@@ -1483,7 +1849,6 @@ function createMainGUI()
 	end
 	updateBehaviorUI()
 	
-	-- ===== ADVANCED TAB =====
 	local advFrame = tabContents["ADVANCED"]
 	addSectionLabel(advFrame, "PART MANIPULATION", 0, Colors.TEXT_PRIMARY)
 	addSlider(advFrame, "Part Size Scale", 1, 0.5, 3, partSizeScale, function(v) partSizeScale = v; for part, data in pairs(controlled) do pcall(function() part.Size = data.origSize * v end) end end)
@@ -1493,7 +1858,6 @@ function createMainGUI()
 	addToggle(advFrame, "Ignore Anchored", 11, true, function(v) end)
 	addToggle(advFrame, "Ignore Player Parts", 12, true, function(v) end)
 	
-	-- ===== SYSTEM TAB =====
 	local sysFrame = tabContents["SYSTEM"]
 	addSectionLabel(sysFrame, "SYSTEM CONTROL", 0, Colors.TEXT_PRIMARY)
 	local statusLbl = Instance.new("TextLabel", sysFrame)
@@ -1506,24 +1870,18 @@ function createMainGUI()
 	statusLbl.LayoutOrder = 1
 	task.spawn(function()
 		while sg.Parent do
-			local statusText = isActive and "ACTIVE" or "IDLE"
-			if statusVerbose then
-				local partsInfo = showPartCountInStatus and (" | PARTS: "..partCount) or ""
-				local modeInfo = " | MODE: "..currentMode:upper()
-				local behaviorInfo = " | BEHAVIOR: "..activeBehavior:upper()
-				statusLbl.Text = "STATUS: "..statusText..partsInfo..modeInfo..behaviorInfo
-			else
-				statusLbl.Text = "STATUS: "..statusText
-			end
+			local modeDesc = (specialMode ~= "none") and ("SPECIAL: "..specialMode:upper()) or ("SHAPE: "..currentMode:upper())
+			local behaviorDesc = (activeBehavior ~= "none") and (" | BEHAVIOR: "..activeBehavior:upper()) or ""
+			local partsInfo = showPartCountInStatus and (" | PARTS: "..partCount) or ""
+			statusLbl.Text = string.format("STATUS: %s | %s%s%s", isActive and "ACTIVE" or "IDLE", modeDesc, behaviorDesc, partsInfo)
 			statusLbl.TextColor3 = isActive and Colors.STATUS_ACTIVE or Colors.STATUS_IDLE
 			task.wait(0.3)
 		end
 	end)
 	addSectionLabel(sysFrame, "DANGER ZONE", 10, Colors.STATUS_IDLE)
 	addActionBtn(sysFrame, "✕ RELEASE ALL PARTS", 11, Colors.STATUS_IDLE, releaseAll)
-	addActionBtn(sysFrame, "⏻ DESTROY GUI", 12, Colors.STATUS_IDLE, function() releaseAll(); sg:Destroy(); if miniButton then miniButton:Destroy() end end)
+	addActionBtn(sysFrame, "⏻ DESTROY GUI", 12, Colors.STATUS_IDLE, function() releaseAll(); cleanupSpecialModes(); sg:Destroy(); if miniButton then miniButton:Destroy() end end)
 	
-	-- ===== SETTINGS TAB (compact + scrollable) =====
 	local settingsFrame = tabContents["SETTINGS"]
 	local settingsScrollingFrame = Instance.new("ScrollingFrame", settingsFrame)
 	settingsScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -1532,25 +1890,21 @@ function createMainGUI()
 	settingsScrollingFrame.ScrollBarImageColor3 = Colors.BORDER
 	settingsScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	settingsScrollingFrame.LayoutOrder = 1
-	
 	local settingsLayout = Instance.new("UIListLayout", settingsScrollingFrame)
 	settingsLayout.Padding = UDim.new(0, 4)
 	settingsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	
 	local settingsPad = Instance.new("UIPadding", settingsScrollingFrame)
 	settingsPad.PaddingTop = UDim.new(0, 4)
 	settingsPad.PaddingBottom = UDim.new(0, 6)
 	settingsPad.PaddingLeft = UDim.new(0, 4)
 	settingsPad.PaddingRight = UDim.new(0, 4)
-	
 	local function updateSettingsCanvas()
 		settingsScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, settingsLayout.AbsoluteContentSize.Y + 8)
 	end
 	settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSettingsCanvas)
 	
 	addSectionLabel(settingsScrollingFrame, "INTERFACE", 0, Colors.TEXT_PRIMARY)
-	
 	local themeGrid = Instance.new("Frame", settingsScrollingFrame)
 	themeGrid.Size = UDim2.new(1, 0, 0, 40)
 	themeGrid.BackgroundTransparency = 1
@@ -1572,57 +1926,26 @@ function createMainGUI()
 		btn.Font = Enum.Font.GothamBold
 		btn.BorderSizePixel = 0
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
-		btn.MouseButton1Click:Connect(function()
-			setTheme(themeKeys[i])
-		end)
+		btn.MouseButton1Click:Connect(function() setTheme(themeKeys[i]) end)
 	end
-	
 	addToggle(settingsScrollingFrame, "UI Animations", 2, enableAnimations, function(v) enableAnimations = v end)
 	addToggle(settingsScrollingFrame, "Show Part Count", 3, showPartCountInStatus, function(v) showPartCountInStatus = v end)
 	addToggle(settingsScrollingFrame, "Verbose Status", 4, statusVerbose, function(v) statusVerbose = v end)
 	addToggle(settingsScrollingFrame, "Auto-Sweep", 5, autoSweepOnModeChange, function(v) autoSweepOnModeChange = v end)
-	
 	addSectionLabel(settingsScrollingFrame, "GUI SIZE", 10, Colors.TEXT_SECONDARY)
-	addSlider(settingsScrollingFrame, "Width", 11, 320, 600, panelWidth, function(v)
-		panelWidth = math.floor(v)
-		applyGUISize(panel)
-	end)
-	addSlider(settingsScrollingFrame, "Height", 12, 400, 700, panelHeight, function(v)
-		panelHeight = math.floor(v)
-		applyGUISize(panel)
-	end)
-	
+	addSlider(settingsScrollingFrame, "Width", 11, 320, 600, panelWidth, function(v) panelWidth = math.floor(v); applyGUISize(panel) end)
+	addSlider(settingsScrollingFrame, "Height", 12, 400, 700, panelHeight, function(v) panelHeight = math.floor(v); applyGUISize(panel) end)
 	addSectionLabel(settingsScrollingFrame, "EXPERIMENTAL", 20, Colors.TEXT_SECONDARY)
-	addActionBtn(settingsScrollingFrame, "🎨 RELOAD THEME", 21, Colors.STATUS_PROCESS, function()
-		setTheme(currentTheme)
-	end)
+	addActionBtn(settingsScrollingFrame, "🎨 RELOAD THEME", 21, Colors.STATUS_PROCESS, function() setTheme(currentTheme) end)
 	addActionBtn(settingsScrollingFrame, "🔄 RESET ALL", 22, Colors.STATUS_IDLE, function()
 		enableAnimations = true; showPartCountInStatus = true; statusVerbose = true; autoSweepOnModeChange = true
 		panelWidth = 400; panelHeight = 500
 		setTheme("dark")
 	end)
-	
-	task.wait(0.1)
-	updateSettingsCanvas()
+	task.wait(0.1); updateSettingsCanvas()
 	
 	return sg
 end
-
--- ==================== INPUTS ====================
-UserInputService.InputBegan:Connect(function(inp, processed)
-	if processed then return end
-	if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	local ray = camera:ScreenPointToRay(inp.Position.X, inp.Position.Y)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local char = player.Character
-	if char then params.FilterDescendantsInstances = {char} end
-	local result = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
-	if result and result.Instance then
-		local part = result.Instance
-		if isValidTarget(part) and not controlled[part] then grabPart(part) end
-	end
-end)
 
 -- ==================== INIT ====================
 createMainGUI()
